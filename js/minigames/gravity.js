@@ -1,24 +1,48 @@
 // ============================================
 // GRAVITY — гонка (Gravity Defied / Hill Climb)
-// Простая физика: холмы, мотоцикл, звёзды
 // ============================================
 
 import { MiniGame } from './engine.js';
+import { Avatar } from '../player/avatar.js';
+import { State } from '../core/state.js';
 
 export class GravityGame extends MiniGame {
   async init() {
     const { assetKey } = this.params;
-    // Позже: загрузить рисунок игрока как спрайт
+    console.log('[Gravity] init. assetKey:', assetKey);
+
+    // Загружаем спрайт мотоцикла
     this.sprite = null;
+    this.spriteLoaded = false;
+
     if (assetKey) {
-      const { loadDrawing } = await import('../drawing/export.js');
-      const data = await loadDrawing(assetKey);
-      if (data) {
-        const img = new Image();
-        await new Promise(r => { img.onload = r; img.src = data.dataURL; });
-        this.sprite = img;
+      try {
+        const { loadDrawing } = await import('../drawing/export.js');
+        const data = await loadDrawing(assetKey);
+        console.log('[Gravity] loadDrawing вернул:', data ? 'OK' : 'null');
+
+        if (data && data.dataURL) {
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = data.dataURL;
+          });
+          this.sprite = img;
+          this.spriteLoaded = true;
+          console.log('[Gravity] Спрайт загружен:', img.width + 'x' + img.height);
+        } else {
+          console.warn('[Gravity] Рисунок не найден под ключом:', assetKey);
+        }
+      } catch (e) {
+        console.error('[Gravity] Ошибка загрузки спрайта:', e);
       }
     }
+
+    // Аватар игрока (для отрисовки на мотоцикле)
+    this.avatar = State.player.avatar
+      ? Avatar.deserialize(State.player.avatar)
+      : new Avatar();
 
     // Мир
     this.world = {
@@ -27,7 +51,7 @@ export class GravityGame extends MiniGame {
       gravity: 1200,
     };
 
-    // Холмы (простая синусоида)
+    // Холмы
     this.groundPoints = [];
     const step = 40;
     for (let x = 0; x <= this.world.width; x += step) {
@@ -37,7 +61,7 @@ export class GravityGame extends MiniGame {
       this.groundPoints.push({ x, y });
     }
 
-    // Игрок (мотоцикл)
+    // Игрок
     this.player = {
       x: 100,
       y: this.world.height * 0.5,
@@ -45,7 +69,6 @@ export class GravityGame extends MiniGame {
       vy: 0,
       angle: 0,
       onGround: false,
-      wheelBase: 60,
     };
 
     // Камера
@@ -93,9 +116,12 @@ export class GravityGame extends MiniGame {
     const g = this.world.gravity;
 
     // Управление
-    if (this.input.gas)   p.vx += 400 * dt;
-    if (this.input.brake) p.vx -= 400 * dt;
-    p.vx *= 0.99;
+    if (this.input.gas)   p.vx += 600 * dt;
+    if (this.input.brake) p.vx -= 600 * dt;
+    p.vx *= 0.995;
+
+    // Ограничение скорости
+    p.vx = Math.max(-100, Math.min(400, p.vx));
 
     // Гравитация
     p.vy += g * dt;
@@ -108,13 +134,17 @@ export class GravityGame extends MiniGame {
     const groundY = this._groundAt(p.x);
     if (p.y >= groundY - 20) {
       p.y = groundY - 20;
-      p.vy = 0;
+      // Отскок вверх по склону
+      const ahead = this._groundAt(p.x + 30);
+      const behind = this._groundAt(p.x - 30);
+      const slope = (ahead - behind) / 60;
+      p.vy = -Math.abs(p.vx) * slope;
       p.onGround = true;
     } else {
       p.onGround = false;
     }
 
-    // Угол (по наклону земли)
+    // Угол
     const ahead = this._groundAt(p.x + 30);
     const behind = this._groundAt(p.x - 30);
     p.angle = Math.atan2(ahead - behind, 60);
@@ -188,24 +218,43 @@ export class GravityGame extends MiniGame {
     // Финиш
     ctx.fillStyle = '#c75a5a';
     ctx.fillRect(this.finishX, 0, 8, canvas.height);
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillStyle = '#c75a5a';
+    ctx.textAlign = 'center';
+    ctx.fillText('🏁', this.finishX + 4, 100);
 
-    // Игрок
+    // ---------- ИГРОК (мотоцикл + персонаж) ----------
     const p = this.player;
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(p.angle);
+
+    // Рисуем мотоцикл (спрайт или заглушка)
     if (this.sprite) {
-      ctx.drawImage(this.sprite, -30, -15, 60, 30);
+      // Рисунок игрока — вписываем в 80x40
+      ctx.drawImage(this.sprite, -40, -15, 80, 40);
     } else {
-      // Заглушка — прямоугольник
+      // Заглушка — мотоцикл из прямоугольников
       ctx.fillStyle = '#3a2e1f';
-      ctx.fillRect(-30, -15, 60, 30);
+      ctx.fillRect(-30, -10, 60, 20);
+      // Колёса
       ctx.beginPath();
       ctx.arc(-20, 15, 10, 0, Math.PI * 2);
+      ctx.fillStyle = '#000';
+      ctx.fill();
+      ctx.beginPath();
       ctx.arc(20, 15, 10, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    // Рисуем персонажа поверх мотоцикла
+    ctx.save();
+    ctx.translate(0, -25);  // Смещаем вверх — на сиденье
+    this.avatar.render(ctx, 0, 0, 0.7);  // Масштаб 0.7
     ctx.restore();
+
+    ctx.restore();
+    // ---------- КОНЕЦ ИГРОКА ----------
 
     ctx.restore();
 
@@ -214,6 +263,13 @@ export class GravityGame extends MiniGame {
     ctx.font = 'bold 20px sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(`⭐ ${this.collected} / ${this.stars.length}`, 20, 40);
+
+    // Отладка
+    if (!this.spriteLoaded) {
+      ctx.fillStyle = '#c00';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText('⚠ Спрайт мотоцикла не загружен (используется заглушка)', 20, 70);
+    }
   }
 
   destroy() {
