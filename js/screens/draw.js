@@ -10,6 +10,12 @@ import { saveDrawing } from '../drawing/export.js';
 import { Toast } from '../ui/toast.js';
 
 export function DrawScreen(root, params = {}) {
+  console.log('[Draw] === ЭКРАН РИСОВАНИЯ ЗАПУЩЕН ===');
+  console.log('[Draw] params:', params);
+  console.log('[Draw] onDone есть?', typeof params.onDone);
+  console.log('[Draw] assetKey:', params.assetKey);
+  console.log('[Draw] pendingChapter в State:', State.stories.pendingChapter);
+
   const {
     assetKey = 'free_draw',
     onDone,
@@ -71,34 +77,53 @@ export function DrawScreen(root, params = {}) {
   screen.querySelector('#btn-clear').onclick = () => drawCanvas.clear();
 
   screen.querySelector('#btn-back').onclick = () => {
-    // Отменяем отложенный переход
+    console.log('[Draw] Кнопка "Назад"');
     State.stories.pendingChapter = null;
     Router.go('story', { storyId: State.stories.currentStoryId || 'prince_and_dragon' });
   };
 
   screen.querySelector('#btn-done').onclick = async () => {
+    console.log('[Draw] === КНОПКА ГОТОВО НАЖАТА ===');
+
     try {
       const result = await saveDrawing(drawCanvas.canvas, assetKey, {
         removeWhite: !freeMode,
         tolerance: 30,
       });
+      console.log('[Draw] Рисунок сохранён:', result);
       Toast.show('Рисунок сохранён!');
 
-      // Сохраняем рисунок в State (для быстрого доступа)
+      // Сохраняем рисунок в State
       State.drawings[assetKey] = result;
+      console.log('[Draw] State.drawings обновлён:', Object.keys(State.drawings));
 
-      if (onDone) {
-        // Вызываем callback (для story.js)
+      // Проверяем onDone
+      console.log('[Draw] Проверка onDone:', typeof onDone);
+
+      if (typeof onDone === 'function') {
+        console.log('[Draw] Вызываю onDone...');
         onDone(result);
+        console.log('[Draw] onDone выполнен');
       } else {
-        // Свободный режим — просто возвращаемся в меню
-        Router.go('menu');
+        console.log('[Draw] onDone НЕ функция — переход по умолчанию');
+        // Проверяем pendingChapter
+        if (State.stories.pendingChapter) {
+          console.log('[Draw] pendingChapter:', State.stories.pendingChapter);
+          State.stories.pendingChapter = null;
+          Router.go('story', { storyId: State.stories.currentStoryId || 'prince_and_dragon' });
+        } else {
+          console.log('[Draw] pendingChapter нет — идём в меню');
+          Router.go('menu');
+        }
       }
     } catch (e) {
-      console.error('[Draw] Ошибка сохранения:', e);
-      Toast.show('Ошибка сохранения: ' + e.message);
+      console.error('[Draw] ❌ Ошибка сохранения:', e);
+      Toast.show('Ошибка: ' + e.message);
     }
   };
 
-  return () => drawCanvas.destroy();
+  return () => {
+    console.log('[Draw] Cleanup');
+    drawCanvas.destroy();
+  };
 }

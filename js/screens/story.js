@@ -11,21 +11,27 @@ import { Toast } from '../ui/toast.js';
 let engine = null;
 
 export async function StoryScreen(root, params = {}) {
+  console.log('[Story] === ЭКРАН СКАЗКИ ЗАПУЩЕН ===');
+  console.log('[Story] params:', params);
+  console.log('[Story] pendingChapter в State:', State.stories.pendingChapter);
+  console.log('[Story] currentChapter в State:', State.stories.currentChapter);
+
   const { storyId = 'prince_and_dragon' } = params;
 
   const screen = document.createElement('div');
   screen.className = 'screen story-screen';
   root.appendChild(screen);
 
-  // Запоминаем текущую сказку
   State.stories.currentStoryId = storyId;
 
-  // Загружаем сказку (один раз)
+  // Загружаем сказку
   if (!engine || engine.story.id !== storyId) {
     let storyData;
     try {
       storyData = await StoryEngine.load(storyId);
+      console.log('[Story] Сказка загружена:', storyData.title);
     } catch (e) {
+      console.error('[Story] Ошибка загрузки:', e);
       screen.innerHTML = `<div class="card">Ошибка загрузки сказки: ${e.message}</div>`;
       return;
     }
@@ -33,11 +39,15 @@ export async function StoryScreen(root, params = {}) {
   }
 
   const renderChapter = (chapterId) => {
+    console.log('[Story] === РЕНДЕР ГЛАВЫ:', chapterId, '===');
+
     const ch = engine.goTo(chapterId);
     if (!ch) {
       console.error('[Story] Глава не найдена:', chapterId);
       return;
     }
+
+    console.log('[Story] Тип главы:', ch.type, '| next:', ch.next);
 
     screen.innerHTML = `
       <div class="screen-header">
@@ -53,6 +63,7 @@ export async function StoryScreen(root, params = {}) {
 
     screen.querySelector('#btn-back').onclick = () => {
       State.stories.pendingChapter = null;
+      State.stories.currentChapter = null;
       Router.go('menu');
     };
 
@@ -89,16 +100,19 @@ export async function StoryScreen(root, params = {}) {
       btn.className = 'btn btn-block';
       btn.textContent = '🎨 Нарисовать';
       btn.onclick = () => {
-        // Запоминаем, куда вернуться после рисования
+        console.log('[Story] Переход к рисованию. next =', ch.next);
+
+        // Запоминаем куда вернуться
         State.stories.pendingChapter = ch.next;
         State.stories.currentChapter = ch.id;
 
-        // Переходим на экран рисования
+        console.log('[Story] pendingChapter установлен:', State.stories.pendingChapter);
+
         Router.go('draw', {
           assetKey: ch.assetKey,
           prompt: ch.text,
           onDone: () => {
-            // После сохранения — возвращаемся в сказку
+            console.log('[Story] onDone вызван, возвращаемся в сказку');
             State.stories.pendingChapter = null;
             Router.go('story', { storyId });
           },
@@ -113,6 +127,7 @@ export async function StoryScreen(root, params = {}) {
       btn.className = 'btn btn-block';
       btn.textContent = '🎮 Играть';
       btn.onclick = () => {
+        console.log('[Story] Переход к мини-игре');
         State.stories.pendingChapter = ch.minigame.onWin;
         Router.go('minigame', {
           minigame: ch.minigame,
@@ -121,7 +136,6 @@ export async function StoryScreen(root, params = {}) {
             Router.go('story', { storyId });
           },
           onLose: () => {
-            // Переигрываем — просто возвращаемся на ту же главу
             State.stories.pendingChapter = null;
             Router.go('story', { storyId });
           },
@@ -142,16 +156,18 @@ export async function StoryScreen(root, params = {}) {
     Router.go('menu');
   };
 
-  // ---------- Стартовая глава ----------
-  // Если есть отложенный переход (после рисования или мини-игры) — идём туда
+  // Стартовая глава
   let startId;
   if (State.stories.pendingChapter) {
     startId = State.stories.pendingChapter;
+    console.log('[Story] Стартуем с pendingChapter:', startId);
     State.stories.pendingChapter = null;
   } else if (State.stories.currentChapter && engine.getChapter(State.stories.currentChapter)) {
     startId = State.stories.currentChapter;
+    console.log('[Story] Стартуем с currentChapter:', startId);
   } else {
     startId = engine.story.startChapter || engine.story.chapters[0].id;
+    console.log('[Story] Стартуем с начала:', startId);
   }
 
   renderChapter(startId);
