@@ -11,7 +11,9 @@ export async function MinigameScreen(root, params = {}) {
   screen.className = 'screen minigame-screen';
 
   screen.innerHTML = `
-    <div class="minigame-canvas-wrap" id="mg-wrap"></div>
+    <div class="minigame-canvas-wrap" id="mg-wrap">
+      <canvas id="mg-canvas"></canvas>
+    </div>
     <div class="minigame-controls">
       <button class="ctrl-btn" id="ctrl-left">◀</button>
       <button class="ctrl-btn" id="ctrl-right">▶</button>
@@ -21,10 +23,15 @@ export async function MinigameScreen(root, params = {}) {
   root.appendChild(screen);
 
   const wrap = screen.querySelector('#mg-wrap');
-  const canvas = document.createElement('canvas');
-  canvas.width = 800;
-  canvas.height = 400;
-  wrap.appendChild(canvas);
+  const canvas = screen.querySelector('#mg-canvas');
+
+  // Canvas растягивается на весь wrap
+  const resize = () => {
+    canvas.width = wrap.clientWidth;
+    canvas.height = wrap.clientHeight;
+  };
+  resize();
+  window.addEventListener('resize', resize);
 
   // Выбор класса мини-игры
   let GameClass;
@@ -42,7 +49,7 @@ export async function MinigameScreen(root, params = {}) {
     }
   } catch (e) {
     console.error('[Minigame] Ошибка загрузки:', e);
-    screen.innerHTML = `<div class="card">Ошибка загрузки мини-игры: ${e.message}</div>`;
+    screen.innerHTML = `<div class="card">Ошибка: ${e.message}</div>`;
     return;
   }
 
@@ -66,13 +73,18 @@ export async function MinigameScreen(root, params = {}) {
     if (game.input) game.input[key] = value;
   };
 
-  leftBtn.addEventListener('pointerdown', () => setInput('brake', true));
+  leftBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); setInput('brake', true); });
   leftBtn.addEventListener('pointerup',   () => setInput('brake', false));
   leftBtn.addEventListener('pointerleave',() => setInput('brake', false));
+  leftBtn.addEventListener('pointercancel',() => setInput('brake', false));
 
-  rightBtn.addEventListener('pointerdown', () => setInput('gas', true));
+  rightBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); setInput('gas', true); });
   rightBtn.addEventListener('pointerup',   () => setInput('gas', false));
   rightBtn.addEventListener('pointerleave',() => setInput('gas', false));
+  rightBtn.addEventListener('pointercancel',() => setInput('gas', false));
 
-  return () => game.destroy();
+  return () => {
+    window.removeEventListener('resize', resize);
+    game.destroy();
+  };
 }
