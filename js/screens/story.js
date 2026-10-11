@@ -17,22 +17,27 @@ export async function StoryScreen(root, params = {}) {
   screen.className = 'screen story-screen';
   root.appendChild(screen);
 
-  // Загружаем сказку
-  let storyData;
-  try {
-    storyData = await StoryEngine.load(storyId);
-  } catch (e) {
-    screen.innerHTML = `<div class="card">Ошибка загрузки сказки: ${e.message}</div>`;
-    return;
-  }
+  // Запоминаем текущую сказку
+  State.stories.currentStoryId = storyId;
 
+  // Загружаем сказку (один раз)
   if (!engine || engine.story.id !== storyId) {
+    let storyData;
+    try {
+      storyData = await StoryEngine.load(storyId);
+    } catch (e) {
+      screen.innerHTML = `<div class="card">Ошибка загрузки сказки: ${e.message}</div>`;
+      return;
+    }
     engine = new StoryEngine(storyData);
   }
 
   const renderChapter = (chapterId) => {
     const ch = engine.goTo(chapterId);
-    if (!ch) return;
+    if (!ch) {
+      console.error('[Story] Глава не найдена:', chapterId);
+      return;
+    }
 
     screen.innerHTML = `
       <div class="screen-header">
@@ -46,12 +51,15 @@ export async function StoryScreen(root, params = {}) {
       <div class="screen-footer" id="chapter-footer"></div>
     `;
 
-    screen.querySelector('#btn-back').onclick = () => Router.go('menu');
+    screen.querySelector('#btn-back').onclick = () => {
+      State.stories.pendingChapter = null;
+      Router.go('menu');
+    };
 
     const extra = screen.querySelector('#chapter-extra');
     const footer = screen.querySelector('#chapter-footer');
 
-    // Обработка по типу
+    // ---------- TEXT ----------
     if (ch.type === 'text') {
       const btn = document.createElement('button');
       btn.className = 'btn btn-block';
@@ -66,6 +74,7 @@ export async function StoryScreen(root, params = {}) {
       footer.appendChild(btn);
     }
 
+    // ---------- CHOICE ----------
     if (ch.type === 'choice') {
       const btns = createChoiceButtons(ch.choices, (id) => {
         const choice = ch.choices.find(c => c.id === id);
@@ -74,29 +83,48 @@ export async function StoryScreen(root, params = {}) {
       extra.appendChild(btns);
     }
 
+    // ---------- DRAW ----------
     if (ch.type === 'draw') {
       const btn = document.createElement('button');
       btn.className = 'btn btn-block';
       btn.textContent = '🎨 Нарисовать';
       btn.onclick = () => {
+        // Запоминаем, куда вернуться после рисования
+        State.stories.pendingChapter = ch.next;
+        State.stories.currentChapter = ch.id;
+
+        // Переходим на экран рисования
         Router.go('draw', {
           assetKey: ch.assetKey,
           prompt: ch.text,
-          onDone: () => renderChapter(ch.next),
+          onDone: () => {
+            // После сохранения — возвращаемся в сказку
+            State.stories.pendingChapter = null;
+            Router.go('story', { storyId });
+          },
         });
       };
       footer.appendChild(btn);
     }
 
+    // ---------- MINIGAME ----------
     if (ch.type === 'minigame') {
       const btn = document.createElement('button');
       btn.className = 'btn btn-block';
       btn.textContent = '🎮 Играть';
       btn.onclick = () => {
+        State.stories.pendingChapter = ch.minigame.onWin;
         Router.go('minigame', {
           minigame: ch.minigame,
-          onWin:  () => renderChapter(ch.minigame.onWin),
-          onLose: () => renderChapter(ch.minigame.onLose),
+          onWin: () => {
+            State.stories.pendingChapter = null;
+            Router.go('story', { storyId });
+          },
+          onLose: () => {
+            // Переигрываем — просто возвращаемся на ту же главу
+            State.stories.pendingChapter = null;
+            Router.go('story', { storyId });
+          },
         });
       };
       footer.appendChild(btn);
@@ -107,14 +135,25 @@ export async function StoryScreen(root, params = {}) {
     const ending = engine.story.endings?.[endingId];
     if (ending) {
       Toast.show(`🏆 ${ending.title}`);
-      // TODO: добавить награду в инвентарь
     }
     engine.finish(endingId);
+    State.stories.currentChapter = null;
+    State.stories.pendingChapter = null;
     Router.go('menu');
   };
 
-  // Стартуем с первой главы (или с текущей)
-  const startId = State.stories.currentChapter || engine.currentChapterId;
+  // ---------- Стартовая глава ----------
+  // Если есть отложенный переход (после рисования или мини-игры) — идём туда
+  let startId;
+  if (State.stories.pendingChapter) {
+    startId = State.stories.pendingChapter;
+    State.stories.pendingChapter = null;
+  } else if (State.stories.currentChapter && engine.getChapter(State.stories.currentChapter)) {
+    startId = State.stories.currentChapter;
+  } else {
+    startId = engine.story.startChapter || engine.story.chapters[0].id;
+  }
+
   renderChapter(startId);
 
   return () => {};

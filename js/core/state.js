@@ -21,6 +21,8 @@ export const State = {
     unlocked: [],
     completed: {},       // { storyId: ['ending_a', 'ending_b'] }
     currentChapter: null,
+    currentStoryId: null,
+    pendingChapter: null,   // ← НОВОЕ: куда вернуться после рисования
   },
 
   // Текущие рисунки (в памяти, но сохраняются в IndexedDB)

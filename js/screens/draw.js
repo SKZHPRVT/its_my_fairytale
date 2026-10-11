@@ -2,6 +2,7 @@
 // DRAW SCREEN — холст для рисования
 // ============================================
 
+import { State } from '../core/state.js';
 import { Router } from '../core/router.js';
 import { DrawCanvas } from '../drawing/canvas.js';
 import { PALETTE, SIZES } from '../drawing/tools.js';
@@ -9,7 +10,12 @@ import { saveDrawing } from '../drawing/export.js';
 import { Toast } from '../ui/toast.js';
 
 export function DrawScreen(root, params = {}) {
-  const { assetKey = 'free_draw', onDone, freeMode = false, prompt = 'Нарисуй что-нибудь!' } = params;
+  const {
+    assetKey = 'free_draw',
+    onDone,
+    freeMode = false,
+    prompt = 'Нарисуй что-нибудь!',
+  } = params;
 
   const screen = document.createElement('div');
   screen.className = 'screen draw-screen';
@@ -64,7 +70,11 @@ export function DrawScreen(root, params = {}) {
 
   screen.querySelector('#btn-clear').onclick = () => drawCanvas.clear();
 
-  screen.querySelector('#btn-back').onclick = () => Router.back();
+  screen.querySelector('#btn-back').onclick = () => {
+    // Отменяем отложенный переход
+    State.stories.pendingChapter = null;
+    Router.go('story', { storyId: State.stories.currentStoryId || 'prince_and_dragon' });
+  };
 
   screen.querySelector('#btn-done').onclick = async () => {
     try {
@@ -73,11 +83,20 @@ export function DrawScreen(root, params = {}) {
         tolerance: 30,
       });
       Toast.show('Рисунок сохранён!');
-      if (onDone) onDone(result);
-      else Router.back();
+
+      // Сохраняем рисунок в State (для быстрого доступа)
+      State.drawings[assetKey] = result;
+
+      if (onDone) {
+        // Вызываем callback (для story.js)
+        onDone(result);
+      } else {
+        // Свободный режим — просто возвращаемся в меню
+        Router.go('menu');
+      }
     } catch (e) {
-      console.error(e);
-      Toast.show('Ошибка сохранения');
+      console.error('[Draw] Ошибка сохранения:', e);
+      Toast.show('Ошибка сохранения: ' + e.message);
     }
   };
 

@@ -28,16 +28,22 @@ export async function MinigameScreen(root, params = {}) {
 
   // Выбор класса мини-игры
   let GameClass;
-  switch (minigame.type) {
-    case 'gravity':    GameClass = (await import('../minigames/gravity.js')).GravityGame; break;
-    case 'physics':    GameClass = (await import('../minigames/physics.js')).PhysicsGame; break;
-    case 'fighting':   GameClass = (await import('../minigames/fighting.js')).FightingGame; break;
-    case 'puzzle':     GameClass = (await import('../minigames/puzzle.js')).PuzzleGame; break;
-    case 'platformer': GameClass = (await import('../minigames/platformer.js')).PlatformerGame; break;
-    case 'racing':     GameClass = (await import('../minigames/racing.js')).RacingGame; break;
-    default:
-      screen.innerHTML = `<div class="card">Неизвестная мини-игра: ${minigame.type}</div>`;
-      return;
+  try {
+    switch (minigame.type) {
+      case 'gravity':    GameClass = (await import('../minigames/gravity.js')).GravityGame; break;
+      case 'physics':    GameClass = (await import('../minigames/physics.js')).PhysicsGame; break;
+      case 'fighting':   GameClass = (await import('../minigames/fighting.js')).FightingGame; break;
+      case 'puzzle':     GameClass = (await import('../minigames/puzzle.js')).PuzzleGame; break;
+      case 'platformer': GameClass = (await import('../minigames/platformer.js')).PlatformerGame; break;
+      case 'racing':     GameClass = (await import('../minigames/racing.js')).RacingGame; break;
+      default:
+        screen.innerHTML = `<div class="card">Неизвестная мини-игра: ${minigame.type}</div>`;
+        return;
+    }
+  } catch (e) {
+    console.error('[Minigame] Ошибка загрузки:', e);
+    screen.innerHTML = `<div class="card">Ошибка загрузки мини-игры: ${e.message}</div>`;
+    return;
   }
 
   const game = new GameClass(canvas, minigame);
@@ -53,10 +59,20 @@ export async function MinigameScreen(root, params = {}) {
   game.start();
 
   // Управление
-  screen.querySelector('#ctrl-left').addEventListener('pointerdown', () => game.input && (game.input.brake = true));
-  screen.querySelector('#ctrl-left').addEventListener('pointerup',   () => game.input && (game.input.brake = false));
-  screen.querySelector('#ctrl-right').addEventListener('pointerdown', () => game.input && (game.input.gas = true));
-  screen.querySelector('#ctrl-right').addEventListener('pointerup',   () => game.input && (game.input.gas = false));
+  const leftBtn = screen.querySelector('#ctrl-left');
+  const rightBtn = screen.querySelector('#ctrl-right');
+
+  const setInput = (key, value) => {
+    if (game.input) game.input[key] = value;
+  };
+
+  leftBtn.addEventListener('pointerdown', () => setInput('brake', true));
+  leftBtn.addEventListener('pointerup',   () => setInput('brake', false));
+  leftBtn.addEventListener('pointerleave',() => setInput('brake', false));
+
+  rightBtn.addEventListener('pointerdown', () => setInput('gas', true));
+  rightBtn.addEventListener('pointerup',   () => setInput('gas', false));
+  rightBtn.addEventListener('pointerleave',() => setInput('gas', false));
 
   return () => game.destroy();
 }
