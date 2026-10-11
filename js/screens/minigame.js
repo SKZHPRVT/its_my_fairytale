@@ -1,0 +1,62 @@
+// ============================================
+// MINIGAME SCREEN — обёртка для мини-игр
+// ============================================
+
+import { Router } from '../core/router.js';
+
+export async function MinigameScreen(root, params = {}) {
+  const { minigame, onWin, onLose } = params;
+
+  const screen = document.createElement('div');
+  screen.className = 'screen minigame-screen';
+
+  screen.innerHTML = `
+    <div class="minigame-canvas-wrap" id="mg-wrap"></div>
+    <div class="minigame-controls">
+      <button class="ctrl-btn" id="ctrl-left">◀</button>
+      <button class="ctrl-btn" id="ctrl-right">▶</button>
+    </div>
+  `;
+
+  root.appendChild(screen);
+
+  const wrap = screen.querySelector('#mg-wrap');
+  const canvas = document.createElement('canvas');
+  canvas.width = 800;
+  canvas.height = 400;
+  wrap.appendChild(canvas);
+
+  // Выбор класса мини-игры
+  let GameClass;
+  switch (minigame.type) {
+    case 'gravity':    GameClass = (await import('../minigames/gravity.js')).GravityGame; break;
+    case 'physics':    GameClass = (await import('../minigames/physics.js')).PhysicsGame; break;
+    case 'fighting':   GameClass = (await import('../minigames/fighting.js')).FightingGame; break;
+    case 'puzzle':     GameClass = (await import('../minigames/puzzle.js')).PuzzleGame; break;
+    case 'platformer': GameClass = (await import('../minigames/platformer.js')).PlatformerGame; break;
+    case 'racing':     GameClass = (await import('../minigames/racing.js')).RacingGame; break;
+    default:
+      screen.innerHTML = `<div class="card">Неизвестная мини-игра: ${minigame.type}</div>`;
+      return;
+  }
+
+  const game = new GameClass(canvas, minigame);
+  await game.init();
+
+  game.onWin(() => {
+    setTimeout(() => onWin?.(), 800);
+  });
+  game.onLose(() => {
+    setTimeout(() => onLose?.(), 800);
+  });
+
+  game.start();
+
+  // Управление
+  screen.querySelector('#ctrl-left').addEventListener('pointerdown', () => game.input && (game.input.brake = true));
+  screen.querySelector('#ctrl-left').addEventListener('pointerup',   () => game.input && (game.input.brake = false));
+  screen.querySelector('#ctrl-right').addEventListener('pointerdown', () => game.input && (game.input.gas = true));
+  screen.querySelector('#ctrl-right').addEventListener('pointerup',   () => game.input && (game.input.gas = false));
+
+  return () => game.destroy();
+}

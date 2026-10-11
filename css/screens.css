@@ -1,0 +1,83 @@
+/* ============================================
+   SCREENS — конкретные экраны (menu, avatar, game)
+   ============================================ */
+
+/* Главное меню */
+.menu-screen {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 32px;
+}
+
+.menu-title {
+  font-family: var(--font-hand);
+  font-size: 42px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.menu-subtitle {
+  font-size: 16px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+}
+
+/* Экран создания аватара */
+.avatar-screen .avatar-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg-paper-dark);
+  border-radius: var(--radius-lg);
+  min-height: 240px;
+}
+
+.avatar-screen .color-picker {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.color-swatch {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.1s;
+}
+
+.color-swatch:active { transform: scale(0.9); }
+.color-swatch.selected {
+  border-color: var(--ink);
+  transform: scale(1.1);
+}
+
+/* Экран сказки */
+.story-screen .story-text {
+  font-family: var(--font-hand);
+  font-size: 22px;
+  line-height: 1.5;
+  padding: 20px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+}
+
+.story-screen .choices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}

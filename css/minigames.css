@@ -1,0 +1,67 @@
+/* ============================================
+   MINIGAMES — UI мини-игр (HUD, кнопки)
+   ============================================ */
+
+.minigame-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #87ceeb;
+}
+
+.minigame-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.minigame-canvas-wrap canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.minigame-hud {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.hud-item {
+  background: rgba(253, 246, 227, 0.9);
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-hand);
+  font-size: 18px;
+  font-weight: 700;
+  box-shadow: var(--shadow-soft);
+}
+
+.minigame-controls {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  justify-content: center;
+  background: rgba(58, 46, 31, 0.9);
+}
+
+.ctrl-btn {
+  flex: 1;
+  max-width: 120px;
+  min-height: 60px;
+  border-radius: var(--radius-md);
+  background: var(--accent-yellow);
+  font-size: 24px;
+  font-weight: 700;
+  box-shadow: var(--shadow-soft);
+}
+
+.ctrl-btn:active { transform: scale(0.95); }

@@ -1,0 +1,38 @@
+{
+  "id": "string",
+  "title": "string",
+  "emoji": "string",
+  "unlocked": "boolean",
+  "requires": ["storyId"],
+  "startChapter": "chapterId",
+  "chapters": [
+    {
+      "id": "string",
+      "type": "text | draw | choice | scene | minigame",
+      "text": "string",
+      "taskType": "object | avatar | background (для draw)",
+      "assetKey": "string (для draw)",
+      "choices": [
+        { "id": "string", "text": "string", "color": "yellow|blue|red|green", "next": "chapterId" }
+      ],
+      "minigame": {
+        "type": "gravity | physics | fighting | puzzle | platformer | racing",
+        "assetKey": "string",
+        "difficulty": "easy|medium|hard",
+        "goal": "string",
+        "onWin": "chapterId",
+        "onLose": "chapterId"
+      },
+      "next": "chapterId"
+    }
+  ],
+  "endings": {
+    "endingId": {
+      "title": "string",
+      "reward": "itemId",
+      "rewardName": "string",
+      "emoji": "string",
+      "power": "number"
+    }
+  }
+}

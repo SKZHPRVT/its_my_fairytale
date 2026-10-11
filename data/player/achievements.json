@@ -1,0 +1,7 @@
+{
+  "achievements": [
+    { "id": "first_drawing", "title": "Первый рисунок", "emoji": "🎨" },
+    { "id": "first_story",   "title": "Первая сказка",  "emoji": "📖" },
+    { "id": "all_endings",   "title": "Все концовки",   "emoji": "🏆" }
+  ]
+}

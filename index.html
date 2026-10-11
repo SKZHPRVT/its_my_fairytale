@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#f4e4c1">
+  <title>Its My Fairytale</title>
+
+  <!-- Telegram WebApp SDK (подключаем сразу, работает и без Telegram) -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Стили -->
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/screens.css">
+  <link rel="stylesheet" href="css/canvas.css">
+  <link rel="stylesheet" href="css/scene.css">
+  <link rel="stylesheet" href="css/minigames.css">
+  <link rel="stylesheet" href="css/telegram.css">
+</head>
+<body>
+
+  <!-- Корневой контейнер приложения -->
+  <div id="app">
+    <!-- Экраны рендерятся сюда динамически через router.js -->
+    <div id="screen-root"></div>
+  </div>
+
+  <!-- Модалки, тосты -->
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+
+  <!-- ============================================ -->
+  <!-- ВРЕМЕННЫЙ ОТЛАДЧИК ОШИБОК                    -->
+  <!-- Удалим, когда всё заработает                 -->
+  <!-- ============================================ -->
+  <script>
+    (function() {
+      function addBanner(text, color, position) {
+        const el = document.createElement('div');
+        el.style.cssText = 'position:fixed;' + (position || 'bottom') + ':0;left:0;right:0;' +
+          'background:' + color + ';color:white;padding:10px;font-size:12px;' +
+          'z-index:99999;white-space:pre-wrap;font-family:monospace;word-break:break-all;';
+        el.textContent = text;
+        document.body.appendChild(el);
+      }
+
+      window.addEventListener('error', function(e) {
+        addBanner('❌ JS ERROR: ' + e.message + ' @ ' + (e.filename || '?') + ':' + e.lineno, '#c00');
+      });
+
+      window.addEventListener('unhandledrejection', function(e) {
+        var msg = e.reason && e.reason.message ? e.reason.message : String(e.reason);
+        addBanner('⚠️ PROMISE: ' + msg, '#e80');
+      });
+
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          var root = document.getElementById('screen-root');
+          if (!root) {
+            addBanner('❌ НЕТ #screen-root в DOM!', '#c00', 'top');
+            return;
+          }
+          if (root.innerHTML.trim() === '') {
+            addBanner('⚠️ #screen-root пустой — main.js не выполнился или Router не сработал', '#808');
+          } else {
+            addBanner('✅ #screen-root заполнен (длина: ' + root.innerHTML.length + ')', '#080', 'top');
+          }
+        }, 1200);
+      });
+    })();
+  </script>
+
+  <!-- Точка входа JS -->
+  <script type="module" src="js/main.js"></script>
+
+</body>
+</html>
