@@ -1,5 +1,6 @@
 // ============================================
 // DRAW SCREEN — холст для рисования
+// Прямая навигация без callback (для надёжности)
 // ============================================
 
 import { State } from '../core/state.js';
@@ -10,15 +11,10 @@ import { saveDrawing } from '../drawing/export.js';
 import { Toast } from '../ui/toast.js';
 
 export function DrawScreen(root, params = {}) {
-  console.log('[Draw] === ЭКРАН РИСОВАНИЯ ЗАПУЩЕН ===');
-  console.log('[Draw] params:', params);
-  console.log('[Draw] onDone есть?', typeof params.onDone);
-  console.log('[Draw] assetKey:', params.assetKey);
-  console.log('[Draw] pendingChapter в State:', State.stories.pendingChapter);
+  console.log('[Draw] Запуск. params:', params);
 
   const {
     assetKey = 'free_draw',
-    onDone,
     freeMode = false,
     prompt = 'Нарисуй что-нибудь!',
   } = params;
@@ -76,49 +72,58 @@ export function DrawScreen(root, params = {}) {
 
   screen.querySelector('#btn-clear').onclick = () => drawCanvas.clear();
 
+  // ---------- НАЗАД ----------
   screen.querySelector('#btn-back').onclick = () => {
-    console.log('[Draw] Кнопка "Назад"');
-    State.stories.pendingChapter = null;
-    Router.go('story', { storyId: State.stories.currentStoryId || 'prince_and_dragon' });
+    console.log('[Draw] Назад');
+    const storyId = State.stories.currentStoryId || 'prince_and_dragon';
+    Router.go('story', { storyId });
   };
 
+  // ---------- ГОТОВО ----------
   screen.querySelector('#btn-done').onclick = async () => {
-    console.log('[Draw] === КНОПКА ГОТОВО НАЖАТА ===');
+    console.log('[Draw] === ГОТОВО ===');
+
+    // Меняем текст кнопки, чтобы было видно, что идёт сохранение
+    const btn = screen.querySelector('#btn-done');
+    btn.textContent = 'Сохраняю...';
+    btn.disabled = true;
 
     try {
       const result = await saveDrawing(drawCanvas.canvas, assetKey, {
         removeWhite: !freeMode,
         tolerance: 30,
       });
-      console.log('[Draw] Рисунок сохранён:', result);
+      console.log('[Draw] Сохранено:', result);
       Toast.show('Рисунок сохранён!');
 
-      // Сохраняем рисунок в State
+      // Сохраняем в State
       State.drawings[assetKey] = result;
-      console.log('[Draw] State.drawings обновлён:', Object.keys(State.drawings));
 
-      // Проверяем onDone
-      console.log('[Draw] Проверка onDone:', typeof onDone);
+      // ---------- ПРЯМАЯ НАВИГАЦИЯ ----------
+      // Не полагаемся на callback и pendingChapter.
+      // Просто идём в сказку. story.js сам разберётся,
+      // какая глава следующая.
+      const storyId = State.stories.currentStoryId || 'prince_and_dragon';
 
-      if (typeof onDone === 'function') {
-        console.log('[Draw] Вызываю onDone...');
-        onDone(result);
-        console.log('[Draw] onDone выполнен');
+      // Устанавливаем, какую главу рендерить
+      if (State.stories.pendingChapter) {
+        console.log('[Draw] pendingChapter:', State.stories.pendingChapter);
+        // Оставляем как есть — story.js подхватит
       } else {
-        console.log('[Draw] onDone НЕ функция — переход по умолчанию');
-        // Проверяем pendingChapter
-        if (State.stories.pendingChapter) {
-          console.log('[Draw] pendingChapter:', State.stories.pendingChapter);
-          State.stories.pendingChapter = null;
-          Router.go('story', { storyId: State.stories.currentStoryId || 'prince_and_dragon' });
-        } else {
-          console.log('[Draw] pendingChapter нет — идём в меню');
-          Router.go('menu');
-        }
+        // Если pendingChapter не установлен — 
+        // просто возвращаемся к текущей главе
+        console.log('[Draw] pendingChapter не установлен');
       }
+
+      // Переходим в сказку
+      console.log('[Draw] Переход в story, storyId =', storyId);
+      Router.go('story', { storyId });
+
     } catch (e) {
-      console.error('[Draw] ❌ Ошибка сохранения:', e);
+      console.error('[Draw] Ошибка:', e);
       Toast.show('Ошибка: ' + e.message);
+      btn.textContent = 'Готово';
+      btn.disabled = false;
     }
   };
 
