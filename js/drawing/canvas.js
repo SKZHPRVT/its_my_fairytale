@@ -2,18 +2,19 @@
 // CANVAS — холст для рисования
 // ============================================
 
+import { DEFAULT_SIZE } from './tools.js';
+
 export class DrawCanvas {
   constructor(container, options = {}) {
     this.container = container;
-    this.width = options.width || 600;
-    this.height = options.height || 600;
+    this.width = options.width || 800;
+    this.height = options.height || 800;
     this.color = options.color || '#3a2e1f';
-    this.size = options.size || 4;
+    this.size = options.size || DEFAULT_SIZE;
     this.tool = 'brush'; // 'brush' | 'eraser'
 
     this._createDOM();
     this._bindEvents();
-    this._resize();
   }
 
   _createDOM() {
@@ -47,8 +48,8 @@ export class DrawCanvas {
       e.preventDefault();
       drawing = true;
       const { x, y } = getPos(e);
-      this.ctx.beginPath();
-      this.ctx.moveTo(x, y);
+      // Рисуем сразу точку (чтобы короткое касание тоже оставляло след)
+      this._drawDot(x, y);
       this._last = { x, y };
     };
 
@@ -56,17 +57,11 @@ export class DrawCanvas {
       if (!drawing) return;
       e.preventDefault();
       const { x, y } = getPos(e);
-      this.ctx.strokeStyle = this.tool === 'eraser' ? '#ffffff' : this.color;
-      this.ctx.lineWidth = this.tool === 'eraser' ? this.size * 3 : this.size;
-      this.ctx.beginPath();
-      this.ctx.moveTo(this._last.x, this._last.y);
-      this.ctx.lineTo(x, y);
-      this.ctx.stroke();
+      this._drawLine(this._last.x, this._last.y, x, y);
       this._last = { x, y };
     };
 
-    const end = (e) => {
-      if (!drawing) return;
+    const end = () => {
       drawing = false;
     };
 
@@ -79,15 +74,30 @@ export class DrawCanvas {
     this.canvas.addEventListener('touchstart', start, { passive: false });
     this.canvas.addEventListener('touchmove',  move,  { passive: false });
     this.canvas.addEventListener('touchend',   end);
+    this.canvas.addEventListener('touchcancel', end);
   }
 
-  _resize() {
-    // Адаптация под контейнер
-    const rect = this.container.getBoundingClientRect();
-    if (rect.width > 0) {
-      this.canvas.style.width  = '100%';
-      this.canvas.style.height = '100%';
-    }
+  _applyStyle() {
+    this.ctx.strokeStyle = this.tool === 'eraser' ? '#ffffff' : this.color;
+    this.ctx.fillStyle   = this.tool === 'eraser' ? '#ffffff' : this.color;
+    // Ластик — в 3 раза толще
+    this.ctx.lineWidth = this.tool === 'eraser' ? this.size * 3 : this.size;
+  }
+
+  _drawDot(x, y) {
+    this._applyStyle();
+    const r = this.ctx.lineWidth / 2;
+    this.ctx.beginPath();
+    this.ctx.arc(x, y, r, 0, Math.PI * 2);
+    this.ctx.fill();
+  }
+
+  _drawLine(x1, y1, x2, y2) {
+    this._applyStyle();
+    this.ctx.beginPath();
+    this.ctx.moveTo(x1, y1);
+    this.ctx.lineTo(x2, y2);
+    this.ctx.stroke();
   }
 
   setColor(color) { this.color = color; }

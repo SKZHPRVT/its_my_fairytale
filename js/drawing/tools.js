@@ -14,4 +14,8 @@ export const PALETTE = [
   '#ffffff', // white
 ];
 
-export const SIZES = [2, 4, 8, 16];
+// Размеры кисти (в 2 раза больше)
+export const SIZES = [6, 12, 24, 48];
+
+// Размер кисти по умолчанию (средний)
+export const DEFAULT_SIZE = 12;
