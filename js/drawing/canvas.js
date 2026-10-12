@@ -1,5 +1,6 @@
 // ============================================
 // CANVAS — холст для рисования
+// Плавный drag
 // ============================================
 
 import { BRUSH_SIZE, ERASER_MULTIPLIER } from './tools.js';
@@ -11,7 +12,7 @@ export class DrawCanvas {
     this.height = options.height || 800;
     this.color = options.color || '#3a2e1f';
     this.size = options.size || BRUSH_SIZE;
-    this.tool = 'brush'; // 'brush' | 'eraser'
+    this.tool = 'brush';
 
     this._createDOM();
     this._bindEvents();
@@ -25,7 +26,6 @@ export class DrawCanvas {
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
 
-    // Белый фон
     this.ctx.fillStyle = '#ffffff';
     this.ctx.fillRect(0, 0, this.width, this.height);
 
@@ -35,7 +35,7 @@ export class DrawCanvas {
   _bindEvents() {
     const getPos = (e) => {
       const rect = this.canvas.getBoundingClientRect();
-      const touch = e.touches?.[0] || e;
+      const touch = e.touches?.[0] || e.changedTouches?.[0] || e;
       return {
         x: (touch.clientX - rect.left) * (this.width / rect.width),
         y: (touch.clientY - rect.top)  * (this.height / rect.height),
@@ -43,25 +43,39 @@ export class DrawCanvas {
     };
 
     let drawing = false;
+    let pendingPos = null;
+    let rafId = null;
+
+    const flush = () => {
+      rafId = null;
+      if (!pendingPos || !this._last) return;
+      this._drawLine(this._last.x, this._last.y, pendingPos.x, pendingPos.y);
+      this._last = pendingPos;
+      pendingPos = null;
+    };
 
     const start = (e) => {
       e.preventDefault();
       drawing = true;
       const { x, y } = getPos(e);
-      // Рисуем точку — чтобы короткое касание оставляло след
       this._drawDot(x, y);
       this._last = { x, y };
+      pendingPos = null;
     };
 
     const move = (e) => {
       if (!drawing) return;
       e.preventDefault();
-      const { x, y } = getPos(e);
-      this._drawLine(this._last.x, this._last.y, x, y);
-      this._last = { x, y };
+      pendingPos = getPos(e);
+      if (rafId === null) rafId = requestAnimationFrame(flush);
     };
 
-    const end = () => { drawing = false; };
+    const end = (e) => {
+      if (!drawing) return;
+      if (pendingPos) flush();
+      drawing = false;
+      this._last = null;
+    };
 
     // Мышь
     this.canvas.addEventListener('mousedown', start);
@@ -101,6 +115,7 @@ export class DrawCanvas {
 
   setColor(color) { this.color = color; }
   setTool(tool)   { this.tool = tool; }
+  setSize(size)   { this.size = size; }
 
   clear() {
     this.ctx.fillStyle = '#ffffff';

@@ -1,9 +1,7 @@
 // ============================================
 // TOOLS — инструменты рисования
-// Палитра, размеры, множители
 // ============================================
 
-// Палитра цветов
 export const PALETTE = [
   '#3a2e1f', // ink
   '#c75a5a', // red
@@ -16,11 +14,11 @@ export const PALETTE = [
   '#ffffff', // white
 ];
 
-// Размеры кисти
-export const SIZES = [2, 4, 8, 16];
+// Размеры кисти — крупнее (для пальца)
+export const SIZES = [4, 8, 16, 32];
 
 // Размер кисти по умолчанию
-export const BRUSH_SIZE = 4;
+export const BRUSH_SIZE = 8;
 
 // Множитель ластика
 export const ERASER_MULTIPLIER = 3;

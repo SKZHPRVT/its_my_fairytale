@@ -19,7 +19,17 @@ export const Telegram = {
     document.body.classList.add('is-telegram');
 
     tg.ready();
-    tg.expand();
+    tg.expand();   // разворачиваем на максимум
+
+    try {
+      tg.requestFullscreen?.();
+    } catch (e) {
+      console.log('[Telegram] Fullscreen не поддерживается');
+    }
+
+    try {
+      tg.disableVerticalSwipes?.();
+    } catch (e) {}
 
     try {
       this.user = tg.initDataUnsafe?.user || null;
@@ -27,7 +37,6 @@ export const Telegram = {
       console.warn('[Telegram] не удалось получить user', e);
     }
 
-    // Подхватываем тему
     this._applyTheme();
 
     console.log('[Telegram] Инициализирован', this.user);
@@ -42,7 +51,6 @@ export const Telegram = {
     if (p.text_color) root.style.setProperty('--tg-text', p.text_color);
   },
 
-  // Главная кнопка (MainButton)
   showMainButton(text, onClick) {
     if (!this.app) return;
     this.app.MainButton.setText(text);
