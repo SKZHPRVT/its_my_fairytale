@@ -1,6 +1,6 @@
 // ============================================
 // AVATAR SCREEN — создание персонажа
-// Фото 256x256 JPEG ~10-20 KB, IDB + fallback LS
+// Без цвета тела. Верх/низ/обувь — заготовки
 // ============================================
 
 import { State } from '../core/state.js';
@@ -9,11 +9,6 @@ import { Storage } from '../core/storage.js';
 import { Avatar } from '../player/avatar.js';
 import { loadDrawing } from '../drawing/export.js';
 import { Toast } from '../ui/toast.js';
-
-const BODY_COLORS = [
-  '#3a2e1f', '#000000', '#c75a5a', '#5a8fc7',
-  '#7ba05b', '#a05ac7', '#e8b84b', '#f4d0a0',
-];
 
 export function AvatarScreen(root) {
   console.log('[Avatar] === ЗАПУСК ===');
@@ -53,8 +48,24 @@ export function AvatarScreen(root) {
       </div>
 
       <div class="avatar-section">
-        <div class="avatar-label">ЦВЕТ</div>
-        <div class="avatar-colors" id="body-colors"></div>
+        <div class="avatar-label">ВЕРХ</div>
+        <div class="avatar-row" id="top-row">
+          <button class="avatar-option" id="btn-top">👕 Одежда</button>
+        </div>
+      </div>
+
+      <div class="avatar-section">
+        <div class="avatar-label">НИЗ</div>
+        <div class="avatar-row" id="bottom-row">
+          <button class="avatar-option" id="btn-bottom">👖 Одежда</button>
+        </div>
+      </div>
+
+      <div class="avatar-section">
+        <div class="avatar-label">ОБУВЬ</div>
+        <div class="avatar-row" id="shoes-row">
+          <button class="avatar-option" id="btn-shoes">👟 Обувь</button>
+        </div>
       </div>
     </div>
 
@@ -91,7 +102,11 @@ export function AvatarScreen(root) {
     avatar.render(ctx, canvas.width / 2, canvas.height / 2 + 20, 1.6);
   };
 
-  render();
+  // Ждём загрузки картинки головы
+  avatar.waitForHead().then(() => {
+    console.log('[Avatar] Голова загружена, рендер');
+    render();
+  });
 
   // Возврат из рисования
   const returnTo = State.drawReturnTo;
@@ -151,6 +166,11 @@ export function AvatarScreen(root) {
 
   fileInput.onchange = (e) => handleFile(e.target.files[0]);
   fileInputCamera.onchange = (e) => handleFile(e.target.files[0]);
+
+  // Заготовки — одежда (пока заглушки)
+  screen.querySelector('#btn-top').onclick = () => Toast.show('Верх — скоро!');
+  screen.querySelector('#btn-bottom').onclick = () => Toast.show('Низ — скоро!');
+  screen.querySelector('#btn-shoes').onclick = () => Toast.show('Обувь — скоро!');
 
   // Кроппер
   const overlay = screen.querySelector('#cropper-overlay');
@@ -247,7 +267,6 @@ export function AvatarScreen(root) {
   screen.querySelector('#crop-zoom-out').onclick = () => { cropScale = Math.max(cropMinScale, cropScale / 1.2); drawCropper(); };
   screen.querySelector('#crop-cancel').onclick = () => { overlay.style.display = 'none'; cropImage = null; };
 
-  // 256x256 JPEG ~10-20 KB — влезает и в LS, и в IDB
   screen.querySelector('#crop-ok').onclick = () => {
     const w = cropCanvas.width;
     const h = cropCanvas.height;
@@ -269,7 +288,6 @@ export function AvatarScreen(root) {
     outCtx.restore();
 
     const dataURL = out.toDataURL('image/jpeg', 0.75);
-    console.log('[Avatar] Фото:', Math.round(dataURL.length / 1024), 'KB');
 
     avatar.setHeadImage(dataURL, () => {
       render();
@@ -279,41 +297,18 @@ export function AvatarScreen(root) {
     });
   };
 
-  // Цвет
-  const bodyColors = screen.querySelector('#body-colors');
-  BODY_COLORS.forEach(color => {
-    const sw = document.createElement('button');
-    sw.className = 'color-swatch' + (color === avatar.color ? ' selected' : '');
-    sw.style.background = color;
-    sw.onclick = () => {
-      avatar.color = color;
-      bodyColors.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
-      sw.classList.add('selected');
-      render();
-    };
-    bodyColors.appendChild(sw);
-  });
-
-  // Сохранение — пробуем IDB, потом LS
+  // Сохранение
   screen.querySelector('#btn-back').onclick = () => Router.back();
 
   screen.querySelector('#btn-save').onclick = async () => {
     const config = avatar.serialize();
-    console.log('[Avatar] Сохраняю, размер:', config.headImage?.length || 0, 'символов');
+    console.log('[Avatar] Сохраняю. headImage:', config.headImage ? 'есть' : 'нет');
 
-    // 1) Пробуем IDB
-    let saved = false;
-    try {
-      saved = await Storage.saveData('avatar', config);
-      if (saved) console.log('[Avatar] Сохранено в IDB');
-    } catch (e) {
-      console.warn('[Avatar] IDB упал:', e);
-    }
-
-    // 2) Всегда сохраняем в LS (для надёжности)
+    // IDB
+    try { await Storage.saveData('avatar', config); } catch (e) {}
+    // LS (всегда — надёжность)
     Storage.save('avatar', config);
 
-    // 3) Синхронизируем State
     State.player.avatar = config;
 
     Toast.show('Персонаж сохранён!');

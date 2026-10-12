@@ -1,6 +1,5 @@
 // ============================================
 // MAIN — точка входа
-// Аватар: сначала IDB, потом LS
 // ============================================
 
 import { State } from './core/state.js';
@@ -9,6 +8,7 @@ import { Storage } from './core/storage.js';
 import { Telegram } from './core/telegram.js';
 import { Inventory } from './player/inventory.js';
 import { Progression } from './player/progression.js';
+import { Avatar } from './player/avatar.js';
 import { Toast } from './ui/toast.js';
 
 import { MenuScreen } from './screens/menu.js';
@@ -26,28 +26,39 @@ async function boot() {
   try { Inventory.init(); } catch (e) {}
   try { Progression.init(); } catch (e) {}
 
-  // Аватар — сначала из IDB, потом из LS
+  // Загрузка аватара (IDB + LS fallback)
   try {
     let savedAvatar = null;
 
-    // Пробуем IDB
     try {
       savedAvatar = await Storage.loadData('avatar');
     } catch (e) {
-      console.warn('[Boot] IDB недоступен:', e);
+      console.warn('[Boot] IDB недоступен');
     }
 
-    // Fallback на LS
     if (!savedAvatar) {
       savedAvatar = Storage.load('avatar', null);
-      if (savedAvatar) console.log('[Boot] Аватар из localStorage');
-    } else {
-      console.log('[Boot] Аватар из IndexedDB');
     }
 
     if (savedAvatar) {
       State.player.avatar = savedAvatar;
-      console.log('[Boot] headImage:', savedAvatar.headImage ? 'есть' : 'нет');
+      console.log('[Boot] Аватар загружен. headImage:', savedAvatar.headImage ? 'есть' : 'нет');
+
+      // ВАЖНО: ждём загрузки картинки в память
+      if (savedAvatar.headImage) {
+        await new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            console.log('[Boot] Картинка головы загружена в память');
+            resolve();
+          };
+          img.onerror = () => {
+            console.warn('[Boot] Ошибка загрузки головы');
+            resolve();
+          };
+          img.src = savedAvatar.headImage;
+        });
+      }
     } else {
       console.log('[Boot] Аватар не найден');
     }
@@ -87,7 +98,3 @@ if (document.readyState === 'loading') {
 } else {
   boot();
 }
-
-window.addEventListener('error', (e) => {
-  console.error('[Global]', e.error);
-});

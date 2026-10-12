@@ -1,5 +1,7 @@
 // ============================================
 // AVATAR — персонаж (стикман)
+// Круглая голова + фото внутри
+// Заготовки под одежду (верх/низ/обувь)
 // ============================================
 
 import { Storage } from '../core/storage.js';
@@ -11,29 +13,41 @@ export class Avatar {
     this.gender = config.gender || 'boy';
     this.color = config.color || '#3a2e1f';
     this.headImage = config.headImage || null;
+
+    // Заготовки под одежду (пока null)
+    this.top = config.top || null;        // { type, color }
+    this.bottom = config.bottom || null;  // { type, color }
+    this.shoes = config.shoes || null;    // { type, color }
+
     this.scale = config.scale || 1;
 
     this._headImgEl = null;
     this._onReady = null;
+    this._headLoaded = false;
 
     if (this.headImage) {
       this._loadHeadImage(this.headImage);
+    } else {
+      this._headLoaded = true;
     }
   }
 
   _loadHeadImage(dataURL) {
     if (!dataURL) {
       this._headImgEl = null;
+      this._headLoaded = true;
       if (this._onReady) this._onReady();
       return;
     }
     const img = new Image();
     img.onload = () => {
       this._headImgEl = img;
+      this._headLoaded = true;
       if (this._onReady) this._onReady();
     };
     img.onerror = () => {
       console.warn('[Avatar] Не удалось загрузить headImage');
+      this._headLoaded = true;
       if (this._onReady) this._onReady();
     };
     img.src = dataURL;
@@ -45,6 +59,15 @@ export class Avatar {
     this._loadHeadImage(dataURL);
   }
 
+  // Ждать загрузки картинки (для синхронизации)
+  waitForHead() {
+    if (this._headLoaded) return Promise.resolve();
+    return new Promise((resolve) => {
+      this._onReady = resolve;
+    });
+  }
+
+  // ---------- РЕНДЕР ----------
   render(ctx, x, y, scale = 1) {
     const s = scale * this.scale;
 
@@ -64,49 +87,11 @@ export class Avatar {
     const armX = 28;
     const lineW = 6;
 
-    // Голова
-    ctx.save();
-
-    if (this._headImgEl) {
-      ctx.beginPath();
-      ctx.arc(0, headCY, headR, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.save();
-      ctx.clip();
-      const d = headR * 2;
-      ctx.drawImage(this._headImgEl, -headR, headCY - headR, d, d);
-      ctx.restore();
-    }
-
-    ctx.beginPath();
-    ctx.arc(0, headCY, headR, 0, Math.PI * 2);
-    ctx.strokeStyle = this.color;
-    ctx.lineWidth = lineW * 0.7;
-    ctx.stroke();
-    ctx.restore();
-
-    // Тело
+    // ----- НОГИ (низ) -----
+    // Пока просто линии; потом — одежда
     ctx.strokeStyle = this.color;
     ctx.lineWidth = lineW;
     ctx.fillStyle = this.color;
-
-    ctx.beginPath();
-    ctx.moveTo(0, neckY);
-    ctx.lineTo(0, hipY);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(-armX, armY);
-    ctx.lineTo(0, neckY + 8);
-    ctx.lineTo(armX, armY);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(-armX, armY, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(armX, armY, 5, 0, Math.PI * 2);
-    ctx.fill();
 
     ctx.beginPath();
     ctx.moveTo(-armX, legY);
@@ -121,6 +106,49 @@ export class Avatar {
     ctx.arc(armX, legY, 5, 0, Math.PI * 2);
     ctx.fill();
 
+    // ----- ТУЛОВИЩЕ -----
+    ctx.beginPath();
+    ctx.moveTo(0, neckY);
+    ctx.lineTo(0, hipY);
+    ctx.stroke();
+
+    // ----- РУКИ -----
+    ctx.beginPath();
+    ctx.moveTo(-armX, armY);
+    ctx.lineTo(0, neckY + 8);
+    ctx.lineTo(armX, armY);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(-armX, armY, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(armX, armY, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ----- ГОЛОВА -----
+    ctx.save();
+
+    if (this._headImgEl) {
+      ctx.beginPath();
+      ctx.arc(0, headCY, headR, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.save();
+      ctx.clip();
+      const d = headR * 2;
+      ctx.drawImage(this._headImgEl, -headR, headCY - headR, d, d);
+      ctx.restore();
+    }
+
+    // Контур
+    ctx.beginPath();
+    ctx.arc(0, headCY, headR, 0, Math.PI * 2);
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = lineW * 0.7;
+    ctx.stroke();
+
+    ctx.restore();
+
     ctx.restore();
   }
 
@@ -133,34 +161,14 @@ export class Avatar {
       gender: this.gender,
       color: this.color,
       headImage: this.headImage,
+      top: this.top,
+      bottom: this.bottom,
+      shoes: this.shoes,
       scale: this.scale,
     };
   }
 
   static deserialize(data) {
     return new Avatar(data);
-  }
-
-  // ---------- СОХРАНЕНИЕ / ЗАГРУЗКА ----------
-  static async save(config) {
-    try {
-      const ok = await Storage.saveData(STORAGE_KEY, config);
-      console.log('[Avatar] Сохранён в IndexedDB:', ok);
-      return ok;
-    } catch (e) {
-      console.error('[Avatar] Ошибка сохранения:', e);
-      return false;
-    }
-  }
-
-  static async load() {
-    try {
-      const data = await Storage.loadData(STORAGE_KEY);
-      console.log('[Avatar] Загружен из IndexedDB:', data ? 'OK' : 'null');
-      return data;
-    } catch (e) {
-      console.error('[Avatar] Ошибка загрузки:', e);
-      return null;
-    }
   }
 }
