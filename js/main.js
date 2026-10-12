@@ -1,5 +1,6 @@
 // ============================================
 // MAIN — точка входа
+// Аватар: сначала IDB, потом LS
 // ============================================
 
 import { State } from './core/state.js';
@@ -21,16 +22,32 @@ console.log('[Main] Загружен');
 async function boot() {
   console.log('[Boot] Старт');
 
-  try { Telegram.init(); } catch (e) { console.error('[Boot] Telegram:', e); }
-  try { Inventory.init(); } catch (e) { console.error('[Boot] Inventory:', e); }
-  try { Progression.init(); } catch (e) { console.error('[Boot] Progression:', e); }
+  try { Telegram.init(); } catch (e) {}
+  try { Inventory.init(); } catch (e) {}
+  try { Progression.init(); } catch (e) {}
 
-  // Аватар из localStorage (синхронно!)
+  // Аватар — сначала из IDB, потом из LS
   try {
-    const savedAvatar = Storage.load('avatar', null);
+    let savedAvatar = null;
+
+    // Пробуем IDB
+    try {
+      savedAvatar = await Storage.loadData('avatar');
+    } catch (e) {
+      console.warn('[Boot] IDB недоступен:', e);
+    }
+
+    // Fallback на LS
+    if (!savedAvatar) {
+      savedAvatar = Storage.load('avatar', null);
+      if (savedAvatar) console.log('[Boot] Аватар из localStorage');
+    } else {
+      console.log('[Boot] Аватар из IndexedDB');
+    }
+
     if (savedAvatar) {
       State.player.avatar = savedAvatar;
-      console.log('[Boot] Аватар загружен, headImage:', savedAvatar.headImage ? 'есть' : 'нет');
+      console.log('[Boot] headImage:', savedAvatar.headImage ? 'есть' : 'нет');
     } else {
       console.log('[Boot] Аватар не найден');
     }
@@ -38,15 +55,12 @@ async function boot() {
     console.error('[Boot] Ошибка загрузки аватара:', e);
   }
 
-  // Прогресс сказок
+  // Прогресс
   try {
-    const completed = Storage.load('stories_completed', {});
-    State.stories.completed = completed;
-  } catch (e) {
-    console.error('[Boot] Ошибка прогресса:', e);
-  }
+    State.stories.completed = Storage.load('stories_completed', {});
+  } catch (e) {}
 
-  // Регистрация экранов
+  // Экраны
   try {
     Router.register('menu',     MenuScreen);
     Router.register('avatar',   AvatarScreen);
@@ -57,7 +71,7 @@ async function boot() {
     console.error('[Boot] Ошибка регистрации:', e);
   }
 
-  // Стартовый экран
+  // Старт
   try {
     const startScreen = State.player.avatar ? 'menu' : 'avatar';
     Router.go(startScreen);

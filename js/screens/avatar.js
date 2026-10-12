@@ -1,28 +1,22 @@
 // ============================================
 // AVATAR SCREEN — создание персонажа
-// Фото сжимается до 64x64 JPEG (~5 KB, влезает в localStorage)
+// Фото 256x256 JPEG ~10-20 KB, IDB + fallback LS
 // ============================================
 
 import { State } from '../core/state.js';
 import { Router } from '../core/router.js';
+import { Storage } from '../core/storage.js';
 import { Avatar } from '../player/avatar.js';
 import { loadDrawing } from '../drawing/export.js';
 import { Toast } from '../ui/toast.js';
 
 const BODY_COLORS = [
-  '#3a2e1f',
-  '#000000',
-  '#c75a5a',
-  '#5a8fc7',
-  '#7ba05b',
-  '#a05ac7',
-  '#e8b84b',
-  '#f4d0a0',
+  '#3a2e1f', '#000000', '#c75a5a', '#5a8fc7',
+  '#7ba05b', '#a05ac7', '#e8b84b', '#f4d0a0',
 ];
 
 export function AvatarScreen(root) {
   console.log('[Avatar] === ЗАПУСК ===');
-  console.log('[Avatar] drawReturnTo:', State.drawReturnTo);
 
   const screen = document.createElement('div');
   screen.className = 'screen avatar-screen';
@@ -99,18 +93,14 @@ export function AvatarScreen(root) {
 
   render();
 
-  // ---------- ВОЗВРАТ ИЗ РИСОВАНИЯ ----------
+  // Возврат из рисования
   const returnTo = State.drawReturnTo;
   State.drawReturnTo = null;
-
   if (returnTo && returnTo.screen === 'avatar') {
-    console.log('[Avatar] Возврат из рисования');
     setTimeout(async () => {
       const data = await loadDrawing('face_drawing');
-      console.log('[Avatar] loadDrawing вернул:', data ? 'OK' : 'null');
       if (data && data.dataURL) {
         avatar.setHeadImage(data.dataURL, () => {
-          console.log('[Avatar] Рисунок применён');
           render();
           Toast.show('Лицо нарисовано!');
         });
@@ -118,7 +108,7 @@ export function AvatarScreen(root) {
     }, 200);
   }
 
-  // ---------- ПОЛ ----------
+  // Пол
   const genderRow = screen.querySelector('#gender-row');
   genderRow.querySelectorAll('.avatar-option').forEach(btn => {
     if (btn.dataset.gender === avatar.gender) btn.classList.add('selected');
@@ -131,7 +121,7 @@ export function AvatarScreen(root) {
     };
   });
 
-  // ---------- ЛИЦО ----------
+  // Лицо
   const fileInput = screen.querySelector('#file-input');
   const fileInputCamera = screen.querySelector('#file-input-camera');
 
@@ -162,7 +152,7 @@ export function AvatarScreen(root) {
   fileInput.onchange = (e) => handleFile(e.target.files[0]);
   fileInputCamera.onchange = (e) => handleFile(e.target.files[0]);
 
-  // ---------- КРОППЕР ----------
+  // Кроппер
   const overlay = screen.querySelector('#cropper-overlay');
   const cropCanvas = screen.querySelector('#cropper-canvas');
   const cropCtx = cropCanvas.getContext('2d');
@@ -172,22 +162,17 @@ export function AvatarScreen(root) {
   let cropScale = 1;
   let cropMinScale = 1;
 
-  const resizeCropper = () => {
-    cropCanvas.width = window.innerWidth;
-    cropCanvas.height = window.innerHeight;
-  };
-
   const openCropper = (dataURL) => {
     const img = new Image();
     img.onload = () => {
       cropImage = img;
-      resizeCropper();
+      cropCanvas.width = window.innerWidth;
+      cropCanvas.height = window.innerHeight;
 
       const circleR = Math.min(cropCanvas.width, cropCanvas.height) * 0.35;
       const fitScale = (circleR * 2) / Math.min(img.width, img.height);
       cropScale = fitScale;
       cropMinScale = fitScale * 0.5;
-
       cropOffset = { x: 0, y: 0 };
       overlay.style.display = 'block';
       drawCropper();
@@ -232,20 +217,10 @@ export function AvatarScreen(root) {
   let dragging = false;
   let dragStart = { x: 0, y: 0 };
   let offsetStart = { x: 0, y: 0 };
-  let cropPending = false;
 
   const getPos = (e) => {
     const t = e.touches?.[0] || e;
     return { x: t.clientX, y: t.clientY };
-  };
-
-  const scheduleDraw = () => {
-    if (cropPending) return;
-    cropPending = true;
-    requestAnimationFrame(() => {
-      cropPending = false;
-      drawCropper();
-    });
   };
 
   cropCanvas.addEventListener('pointerdown', (e) => {
@@ -254,7 +229,6 @@ export function AvatarScreen(root) {
     const p = getPos(e);
     dragStart = p;
     offsetStart = { ...cropOffset };
-    try { cropCanvas.setPointerCapture(e.pointerId); } catch (_) {}
   });
 
   cropCanvas.addEventListener('pointermove', (e) => {
@@ -263,27 +237,17 @@ export function AvatarScreen(root) {
     const p = getPos(e);
     cropOffset.x = offsetStart.x + (p.x - dragStart.x);
     cropOffset.y = offsetStart.y + (p.y - dragStart.y);
-    scheduleDraw();
+    drawCropper();
   });
 
   cropCanvas.addEventListener('pointerup', () => { dragging = false; });
   cropCanvas.addEventListener('pointercancel', () => { dragging = false; });
 
-  screen.querySelector('#crop-zoom-in').onclick = () => {
-    cropScale *= 1.2;
-    scheduleDraw();
-  };
-  screen.querySelector('#crop-zoom-out').onclick = () => {
-    cropScale = Math.max(cropMinScale, cropScale / 1.2);
-    scheduleDraw();
-  };
+  screen.querySelector('#crop-zoom-in').onclick = () => { cropScale *= 1.2; drawCropper(); };
+  screen.querySelector('#crop-zoom-out').onclick = () => { cropScale = Math.max(cropMinScale, cropScale / 1.2); drawCropper(); };
+  screen.querySelector('#crop-cancel').onclick = () => { overlay.style.display = 'none'; cropImage = null; };
 
-  screen.querySelector('#crop-cancel').onclick = () => {
-    overlay.style.display = 'none';
-    cropImage = null;
-  };
-
-  // ВАЖНО: сжимаем до 64x64 JPEG (~5 KB)
+  // 256x256 JPEG ~10-20 KB — влезает и в LS, и в IDB
   screen.querySelector('#crop-ok').onclick = () => {
     const w = cropCanvas.width;
     const h = cropCanvas.height;
@@ -292,25 +256,20 @@ export function AvatarScreen(root) {
     const cy = h / 2;
 
     const out = document.createElement('canvas');
-    out.width = 64;   // ← было 128
-    out.height = 64;
+    out.width = 256;
+    out.height = 256;
     const outCtx = out.getContext('2d');
 
     outCtx.save();
     outCtx.beginPath();
-    outCtx.arc(32, 32, 32, 0, Math.PI * 2);
+    outCtx.arc(128, 128, 128, 0, Math.PI * 2);
     outCtx.closePath();
     outCtx.clip();
-
-    const sx = cx - circleR;
-    const sy = cy - circleR;
-    const sSize = circleR * 2;
-    outCtx.drawImage(cropCanvas, sx, sy, sSize, sSize, 0, 0, 64, 64);
+    outCtx.drawImage(cropCanvas, cx - circleR, cy - circleR, circleR * 2, circleR * 2, 0, 0, 256, 256);
     outCtx.restore();
 
-    // JPEG 0.7 — максимальное сжатие
-    const dataURL = out.toDataURL('image/jpeg', 0.7);
-    console.log('[Avatar] Фото сжато, размер:', dataURL.length, 'символов (~' + Math.round(dataURL.length / 1024) + ' KB)');
+    const dataURL = out.toDataURL('image/jpeg', 0.75);
+    console.log('[Avatar] Фото:', Math.round(dataURL.length / 1024), 'KB');
 
     avatar.setHeadImage(dataURL, () => {
       render();
@@ -320,7 +279,7 @@ export function AvatarScreen(root) {
     });
   };
 
-  // ---------- ЦВЕТ ----------
+  // Цвет
   const bodyColors = screen.querySelector('#body-colors');
   BODY_COLORS.forEach(color => {
     const sw = document.createElement('button');
@@ -335,28 +294,30 @@ export function AvatarScreen(root) {
     bodyColors.appendChild(sw);
   });
 
-  // ---------- СОХРАНЕНИЕ ----------
+  // Сохранение — пробуем IDB, потом LS
   screen.querySelector('#btn-back').onclick = () => Router.back();
 
-  screen.querySelector('#btn-save').onclick = () => {
+  screen.querySelector('#btn-save').onclick = async () => {
     const config = avatar.serialize();
-    console.log('[Avatar] Сохраняю, размер headImage:', config.headImage?.length || 0, 'символов');
+    console.log('[Avatar] Сохраняю, размер:', config.headImage?.length || 0, 'символов');
 
-    // Сохраняем в localStorage
-    import('../core/storage.js').then(({ Storage }) => {
-      const ok = Storage.save('avatar', config);
-      console.log('[Avatar] Storage.save вернул:', ok);
+    // 1) Пробуем IDB
+    let saved = false;
+    try {
+      saved = await Storage.saveData('avatar', config);
+      if (saved) console.log('[Avatar] Сохранено в IDB');
+    } catch (e) {
+      console.warn('[Avatar] IDB упал:', e);
+    }
 
-      // Синхронизируем State
-      State.player.avatar = config;
+    // 2) Всегда сохраняем в LS (для надёжности)
+    Storage.save('avatar', config);
 
-      if (ok) {
-        Toast.show('Персонаж сохранён!');
-        Router.go('menu');
-      } else {
-        Toast.show('Ошибка сохранения: хранилище переполнено');
-      }
-    });
+    // 3) Синхронизируем State
+    State.player.avatar = config;
+
+    Toast.show('Персонаж сохранён!');
+    Router.go('menu');
   };
 
   return () => {};
