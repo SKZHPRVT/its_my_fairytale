@@ -1,6 +1,7 @@
 // ============================================
 // DRAW SCREEN — холст для рисования
-// Одна кисть 10 px (без выбора размера)
+// Одна кисть 10 px
+// ВАЖНО: НЕ обнуляем State.drawReturnTo — это делает avatar.js
 // ============================================
 
 import { State } from '../core/state.js';
@@ -85,7 +86,8 @@ export function DrawScreen(root, params = {}) {
   // ---------- НАЗАД ----------
   const goBack = () => {
     const returnTo = State.drawReturnTo;
-    State.drawReturnTo = null;
+    console.log('[Draw] Назад. returnTo =', returnTo);
+    // НЕ обнуляем — avatar.js сам обнулит
 
     if (returnTo && returnTo.screen === 'avatar') {
       Router.go('avatar');
@@ -117,14 +119,17 @@ export function DrawScreen(root, params = {}) {
       State.drawings[assetKey] = result;
 
       const returnTo = State.drawReturnTo;
-      State.drawReturnTo = null;
-      console.log('[Draw] returnTo:', returnTo);
+      console.log('[Draw] returnTo =', returnTo);
+      // НЕ обнуляем — avatar.js сам обнулит
 
       if (returnTo && returnTo.screen === 'avatar') {
+        console.log('[Draw] → Router.go(avatar)');
         Router.go('avatar');
       } else if (returnTo && returnTo.screen === 'story') {
+        console.log('[Draw] → Router.go(story)');
         Router.go('story', { storyId: State.stories.currentStoryId || 'prince_and_dragon' });
       } else {
+        console.log('[Draw] → Router.go(menu)');
         Router.go('menu');
       }
     } catch (e) {
