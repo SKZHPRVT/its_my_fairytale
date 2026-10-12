@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Test ES module</title>
+</head>
+<body style="font-family: monospace; padding: 20px; background: #f4e4c1;">
+  <h1>🔍 Тест ES-модуля</h1>
+  <div id="log">Загрузка...</div>
+
+  <script type="module">
+    document.getElementById('log').textContent = 'Модуль начал выполняться';
+
+    try {
+      const m = await import('./js/drawing/tools.js');
+      document.getElementById('log').textContent = '✅ Модуль загружен! Экспорты: ' + Object.keys(m).join(', ');
+    } catch (e) {
+      document.getElementById('log').textContent = '❌ Ошибка: ' + e.message;
+    }
+  </script>
+</body>
+</html>

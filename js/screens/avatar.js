@@ -1,12 +1,13 @@
 // ============================================
 // AVATAR SCREEN — создание персонажа
+// С кроппером для фото
 // ============================================
 
 import { State } from '../core/state.js';
 import { Router } from '../core/router.js';
 import { Storage } from '../core/storage.js';
 import { Avatar } from '../player/avatar.js';
-import { cropToSquare } from '../drawing/export.js';
+import { cropToSquare, loadDrawing } from '../drawing/export.js';
 import { Toast } from '../ui/toast.js';
 
 const BODY_COLORS = [
@@ -21,6 +22,9 @@ const BODY_COLORS = [
 ];
 
 export function AvatarScreen(root) {
+  console.log('[AvatarScreen] Запуск');
+  console.log('[AvatarScreen] drawReturnTo:', State.drawReturnTo);
+
   const screen = document.createElement('div');
   screen.className = 'screen avatar-screen';
 
@@ -64,6 +68,20 @@ export function AvatarScreen(root) {
     <div class="screen-footer">
       <button class="btn btn-block" id="btn-save">Готово ✓</button>
     </div>
+
+    <!-- КРОППЕР (скрыт, показываем при выборе фото) -->
+    <div id="cropper-overlay" style="display:none; position:fixed; inset:0; background:#000; z-index:9000;">
+      <div style="position:absolute; top:12px; left:0; right:0; text-align:center; color:#fff; font-family:sans-serif; font-size:14px; z-index:10;">
+        Двигай фото · Масштабируй кнопками
+      </div>
+      <canvas id="cropper-canvas" style="display:block; width:100%; height:100%;"></canvas>
+      <div style="position:absolute; bottom:16px; left:16px; right:16px; display:flex; gap:8px; z-index:10;">
+        <button id="crop-cancel" style="flex:1; padding:14px; border-radius:12px; border:none; background:#444; color:#fff; font-size:16px;">Отмена</button>
+        <button id="crop-zoom-out" style="width:56px; padding:14px; border-radius:12px; border:none; background:#e8b84b; color:#000; font-size:22px; font-weight:bold;">−</button>
+        <button id="crop-zoom-in"  style="width:56px; padding:14px; border-radius:12px; border:none; background:#e8b84b; color:#000; font-size:22px; font-weight:bold;">+</button>
+        <button id="crop-ok" style="flex:1; padding:14px; border-radius:12px; border:none; background:#7ba05b; color:#fff; font-size:16px; font-weight:bold;">Готово</button>
+      </div>
+    </div>
   `;
 
   root.appendChild(screen);
@@ -84,14 +102,23 @@ export function AvatarScreen(root) {
 
   render();
 
-  // ---------- ПРОВЕРКА: пришли ли с экрана рисунка ----------
+  // ---------- ВОЗВРАТ ИЗ РИСОВАНИЯ ----------
   if (State.drawReturnTo && State.drawReturnTo.screen === 'avatar') {
-    const callback = State.drawReturnTo.callback;
+    console.log('[AvatarScreen] Возврат из рисования — загружаю рисунок');
     State.drawReturnTo = null;
-    // На следующем кадре (когда картинка уже сохранена) — применим
-    setTimeout(() => {
-      if (typeof callback === 'function') callback(avatar, render);
-    }, 50);
+    setTimeout(async () => {
+      const data = await loadDrawing('face_drawing');
+      console.log('[AvatarScreen] loadDrawing(face_drawing):', data ? 'OK' : 'null');
+      if (data && data.dataURL) {
+        avatar.setHeadImage(data.dataURL, () => {
+          console.log('[AvatarScreen] Рисунок применён');
+          render();
+        });
+        Toast.show('Лицо нарисовано!');
+      } else {
+        Toast.show('Рисунок не найден');
+      }
+    }, 100);
   }
 
   // ---------- ПОЛ ----------
@@ -112,29 +139,10 @@ export function AvatarScreen(root) {
   const fileInput = screen.querySelector('#file-input');
   const fileInputCamera = screen.querySelector('#file-input-camera');
 
-  const loadImageFile = (file) => {
+  const handleFile = (file) => {
     if (!file) return;
-    console.log('[Avatar] Файл выбран:', file.name, file.size);
     const reader = new FileReader();
-    reader.onload = async (e) => {
-      console.log('[Avatar] Файл прочитан, длина DataURL:', e.target.result.length);
-      try {
-        const squareURL = await cropToSquare(e.target.result, 256);
-        console.log('[Avatar] Обрезано в квадрат, длина:', squareURL.length);
-        avatar.setHeadImage(squareURL, () => {
-          console.log('[Avatar] Картинка загружена, рендер...');
-          render();
-        });
-        Toast.show('Лицо добавлено!');
-      } catch (err) {
-        console.error('[Avatar] Ошибка обработки картинки:', err);
-        Toast.show('Ошибка: ' + err.message);
-      }
-    };
-    reader.onerror = (e) => {
-      console.error('[Avatar] Ошибка чтения файла:', e);
-      Toast.show('Не удалось прочитать файл');
-    };
+    reader.onload = (e) => openCropper(e.target.result);
     reader.readAsDataURL(file);
   };
 
@@ -142,32 +150,12 @@ export function AvatarScreen(root) {
   screen.querySelector('#btn-gallery').onclick = () => fileInput.click();
 
   screen.querySelector('#btn-draw-face').onclick = () => {
-    console.log('[Avatar] → Рисование лица');
-    // Запоминаем, куда вернуться
-    State.drawReturnTo = {
-      screen: 'avatar',
-      callback: (av, renderFn) => {
-        console.log('[Avatar] Callback из рисования вызван');
-        // Загружаем рисунок из IndexedDB
-        import('../drawing/export.js').then(async ({ loadDrawing }) => {
-          const data = await loadDrawing('face_drawing');
-          if (data && data.dataURL) {
-            console.log('[Avatar] Рисунок загружен, применяем');
-            av.setHeadImage(data.dataURL, () => {
-              console.log('[Avatar] Рисунок применён, рендер...');
-              renderFn();
-            });
-            Toast.show('Лицо нарисовано!');
-          } else {
-            console.warn('[Avatar] Рисунок не найден');
-          }
-        });
-      },
-    };
+    console.log('[AvatarScreen] → Рисование лица');
+    State.drawReturnTo = { screen: 'avatar' };
     Router.go('draw', {
       assetKey: 'face_drawing',
       prompt: 'Нарисуй лицо',
-      freeMode: true,   // НЕ удаляем белый фон
+      freeMode: true,
     });
   };
 
@@ -176,8 +164,161 @@ export function AvatarScreen(root) {
     Toast.show('Лицо убрано');
   };
 
-  fileInput.onchange = (e) => loadImageFile(e.target.files[0]);
-  fileInputCamera.onchange = (e) => loadImageFile(e.target.files[0]);
+  fileInput.onchange = (e) => handleFile(e.target.files[0]);
+  fileInputCamera.onchange = (e) => handleFile(e.target.files[0]);
+
+  // ---------- КРОППЕР ----------
+  const overlay = screen.querySelector('#cropper-overlay');
+  const cropCanvas = screen.querySelector('#cropper-canvas');
+  const cropCtx = cropCanvas.getContext('2d');
+
+  let cropImage = null;
+  let cropOffset = { x: 0, y: 0 };
+  let cropScale = 1;
+  let cropMinScale = 1;
+
+  const resizeCropper = () => {
+    cropCanvas.width = window.innerWidth;
+    cropCanvas.height = window.innerHeight;
+  };
+
+  const openCropper = (dataURL) => {
+    const img = new Image();
+    img.onload = () => {
+      cropImage = img;
+      resizeCropper();
+
+      // Начальный масштаб: чтобы картинка заполнила круг
+      const circleR = Math.min(cropCanvas.width, cropCanvas.height) * 0.35;
+      const fitScale = (circleR * 2) / Math.min(img.width, img.height);
+      cropScale = fitScale;
+      cropMinScale = fitScale * 0.5;
+
+      cropOffset = { x: 0, y: 0 };
+      overlay.style.display = 'block';
+      drawCropper();
+    };
+    img.src = dataURL;
+  };
+
+  const drawCropper = () => {
+    if (!cropImage) return;
+    const w = cropCanvas.width;
+    const h = cropCanvas.height;
+
+    cropCtx.fillStyle = '#000';
+    cropCtx.fillRect(0, 0, w, h);
+
+    // Рисуем фото с учётом offset и scale
+    const dw = cropImage.width * cropScale;
+    const dh = cropImage.height * cropScale;
+    const dx = w / 2 - dw / 2 + cropOffset.x;
+    const dy = h / 2 - dh / 2 + cropOffset.y;
+
+    cropCtx.drawImage(cropImage, dx, dy, dw, dh);
+
+    // Затемнение снаружи круга
+    const circleR = Math.min(w, h) * 0.35;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    cropCtx.save();
+    cropCtx.fillStyle = 'rgba(0,0,0,0.6)';
+    cropCtx.beginPath();
+    cropCtx.rect(0, 0, w, h);
+    cropCtx.arc(cx, cy, circleR, 0, Math.PI * 2, true);
+    cropCtx.fill();
+    cropCtx.restore();
+
+    // Контур круга
+    cropCtx.strokeStyle = '#e8b84b';
+    cropCtx.lineWidth = 3;
+    cropCtx.beginPath();
+    cropCtx.arc(cx, cy, circleR, 0, Math.PI * 2);
+    cropCtx.stroke();
+  };
+
+  // Drag
+  let dragging = false;
+  let dragStart = { x: 0, y: 0 };
+  let offsetStart = { x: 0, y: 0 };
+
+  const getPos = (e) => {
+    const t = e.touches?.[0] || e;
+    return { x: t.clientX, y: t.clientY };
+  };
+
+  cropCanvas.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    const p = getPos(e);
+    dragStart = p;
+    offsetStart = { ...cropOffset };
+    cropCanvas.setPointerCapture?.(e.pointerId);
+  });
+
+  cropCanvas.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const p = getPos(e);
+    cropOffset.x = offsetStart.x + (p.x - dragStart.x);
+    cropOffset.y = offsetStart.y + (p.y - dragStart.y);
+    drawCropper();
+  });
+
+  cropCanvas.addEventListener('pointerup', () => { dragging = false; });
+  cropCanvas.addEventListener('pointercancel', () => { dragging = false; });
+
+  // Zoom кнопки
+  screen.querySelector('#crop-zoom-in').onclick = () => {
+    cropScale *= 1.2;
+    drawCropper();
+  };
+  screen.querySelector('#crop-zoom-out').onclick = () => {
+    cropScale = Math.max(cropMinScale, cropScale / 1.2);
+    drawCropper();
+  };
+
+  // Отмена
+  screen.querySelector('#crop-cancel').onclick = () => {
+    overlay.style.display = 'none';
+    cropImage = null;
+  };
+
+  // Готово — обрезаем по кругу
+  screen.querySelector('#crop-ok').onclick = () => {
+    const w = cropCanvas.width;
+    const h = cropCanvas.height;
+    const circleR = Math.min(w, h) * 0.35;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    // Создаём canvas с квадратом 256x256
+    const out = document.createElement('canvas');
+    out.width = 256;
+    out.height = 256;
+    const outCtx = out.getContext('2d');
+
+    // Круглая обрезка
+    outCtx.save();
+    outCtx.beginPath();
+    outCtx.arc(128, 128, 128, 0, Math.PI * 2);
+    outCtx.closePath();
+    outCtx.clip();
+
+    // Рисуем область из cropCanvas
+    const sx = cx - circleR;
+    const sy = cy - circleR;
+    const sSize = circleR * 2;
+    outCtx.drawImage(cropCanvas, sx, sy, sSize, sSize, 0, 0, 256, 256);
+    outCtx.restore();
+
+    const dataURL = out.toDataURL('image/png');
+    avatar.setHeadImage(dataURL, () => {
+      render();
+      overlay.style.display = 'none';
+      cropImage = null;
+      Toast.show('Лицо добавлено!');
+    });
+  };
 
   // ---------- ЦВЕТ ----------
   const bodyColors = screen.querySelector('#body-colors');

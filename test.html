@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Test — диагностика</title>
+</head>
+<body style="font-family: monospace; padding: 20px; background: #f4e4c1; font-size: 14px;">
+  <h1>🔍 Тест загрузки модулей</h1>
+  <div id="log"></div>
+
+  <script type="module">
+    const log = (msg, color = '#000') => {
+      const el = document.createElement('div');
+      el.style.color = color;
+      el.style.marginBottom = '6px';
+      el.style.whiteSpace = 'pre-wrap';
+      el.textContent = msg;
+      document.getElementById('log').appendChild(el);
+    };
+
+    log('🚀 Начинаю проверку...', '#0066cc');
+
+    const modules = [
+      './js/core/state.js',
+      './js/core/router.js',
+      './js/core/storage.js',
+      './js/core/telegram.js',
+      './js/core/events.js',
+      './js/core/audio.js',
+      './js/player/avatar.js',
+      './js/player/inventory.js',
+      './js/player/progression.js',
+      './js/player/equipment.js',
+      './js/drawing/canvas.js',
+      './js/drawing/tools.js',
+      './js/drawing/export.js',
+      './js/story/engine.js',
+      './js/story/chapters.js',
+      './js/story/branches.js',
+      './js/story/endings.js',
+      './js/ui/toast.js',
+      './js/ui/buttons.js',
+      './js/ui/modal.js',
+      './js/ui/hud.js',
+      './js/screens/menu.js',
+      './js/screens/avatar.js',
+      './js/screens/draw.js',
+      './js/screens/story.js',
+      './js/screens/minigame.js',
+    ];
+
+    let errors = 0;
+
+    for (const mod of modules) {
+      try {
+        const m = await import(mod);
+        const keys = Object.keys(m).join(', ') || '(нет экспортов)';
+        log('✅ ' + mod + '\n   → ' + keys, '#008800');
+      } catch (e) {
+        errors++;
+        log('❌ ' + mod + '\n   → ' + e.message, '#cc0000');
+      }
+    }
+
+    if (errors === 0) {
+      log('\n✅ Все модули загружены без ошибок', '#0066cc');
+    } else {
+      log('\n❌ Ошибок: ' + errors, '#cc0000');
+    }
+  </script>
+</body>
+</html>
