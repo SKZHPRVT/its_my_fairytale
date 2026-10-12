@@ -7,7 +7,8 @@
   inset: 0;
   display: flex;
   flex-direction: column;
-  padding-top: var(--safe-top);
+  /* Отступы для safe-area (вырезы, статус-бар) */
+  padding-top: calc(16px + var(--safe-top));
   padding-bottom: var(--safe-bottom);
 }
 

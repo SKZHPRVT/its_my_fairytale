@@ -1,13 +1,12 @@
 // ============================================
 // AVATAR SCREEN — создание персонажа
-// С кроппером для фото
 // ============================================
 
 import { State } from '../core/state.js';
 import { Router } from '../core/router.js';
 import { Storage } from '../core/storage.js';
 import { Avatar } from '../player/avatar.js';
-import { cropToSquare, loadDrawing } from '../drawing/export.js';
+import { loadDrawing } from '../drawing/export.js';
 import { Toast } from '../ui/toast.js';
 
 const BODY_COLORS = [
@@ -22,8 +21,8 @@ const BODY_COLORS = [
 ];
 
 export function AvatarScreen(root) {
-  console.log('[AvatarScreen] Запуск');
-  console.log('[AvatarScreen] drawReturnTo:', State.drawReturnTo);
+  console.log('[Avatar] === ЗАПУСК ===');
+  console.log('[Avatar] drawReturnTo:', State.drawReturnTo);
 
   const screen = document.createElement('div');
   screen.className = 'screen avatar-screen';
@@ -69,17 +68,17 @@ export function AvatarScreen(root) {
       <button class="btn btn-block" id="btn-save">Готово ✓</button>
     </div>
 
-    <!-- КРОППЕР (скрыт, показываем при выборе фото) -->
+    <!-- КРОППЕР -->
     <div id="cropper-overlay" style="display:none; position:fixed; inset:0; background:#000; z-index:9000;">
-      <div style="position:absolute; top:12px; left:0; right:0; text-align:center; color:#fff; font-family:sans-serif; font-size:14px; z-index:10;">
+      <div style="position:absolute; top:calc(16px + env(safe-area-inset-top)); left:0; right:0; text-align:center; color:#fff; font-family:sans-serif; font-size:14px; z-index:10; padding:0 16px;">
         Двигай фото · Масштабируй кнопками
       </div>
       <canvas id="cropper-canvas" style="display:block; width:100%; height:100%;"></canvas>
-      <div style="position:absolute; bottom:16px; left:16px; right:16px; display:flex; gap:8px; z-index:10;">
-        <button id="crop-cancel" style="flex:1; padding:14px; border-radius:12px; border:none; background:#444; color:#fff; font-size:16px;">Отмена</button>
-        <button id="crop-zoom-out" style="width:56px; padding:14px; border-radius:12px; border:none; background:#e8b84b; color:#000; font-size:22px; font-weight:bold;">−</button>
-        <button id="crop-zoom-in"  style="width:56px; padding:14px; border-radius:12px; border:none; background:#e8b84b; color:#000; font-size:22px; font-weight:bold;">+</button>
-        <button id="crop-ok" style="flex:1; padding:14px; border-radius:12px; border:none; background:#7ba05b; color:#fff; font-size:16px; font-weight:bold;">Готово</button>
+      <div style="position:absolute; bottom:calc(16px + env(safe-area-inset-bottom)); left:16px; right:16px; display:flex; gap:8px; z-index:10;">
+        <button id="crop-cancel" style="flex:1; padding:14px; border-radius:12px; border:none; background:#444; color:#fff; font-size:16px; cursor:pointer;">Отмена</button>
+        <button id="crop-zoom-out" style="width:56px; padding:14px; border-radius:12px; border:none; background:#e8b84b; color:#000; font-size:22px; font-weight:bold; cursor:pointer;">−</button>
+        <button id="crop-zoom-in"  style="width:56px; padding:14px; border-radius:12px; border:none; background:#e8b84b; color:#000; font-size:22px; font-weight:bold; cursor:pointer;">+</button>
+        <button id="crop-ok" style="flex:1; padding:14px; border-radius:12px; border:none; background:#7ba05b; color:#fff; font-size:16px; font-weight:bold; cursor:pointer;">Готово</button>
       </div>
     </div>
   `;
@@ -103,22 +102,26 @@ export function AvatarScreen(root) {
   render();
 
   // ---------- ВОЗВРАТ ИЗ РИСОВАНИЯ ----------
-  if (State.drawReturnTo && State.drawReturnTo.screen === 'avatar') {
-    console.log('[AvatarScreen] Возврат из рисования — загружаю рисунок');
-    State.drawReturnTo = null;
+  const returnTo = State.drawReturnTo;
+  State.drawReturnTo = null;
+
+  if (returnTo && returnTo.screen === 'avatar') {
+    console.log('[Avatar] Возврат из рисования');
     setTimeout(async () => {
+      console.log('[Avatar] Загружаю face_drawing...');
       const data = await loadDrawing('face_drawing');
-      console.log('[AvatarScreen] loadDrawing(face_drawing):', data ? 'OK' : 'null');
+      console.log('[Avatar] loadDrawing вернул:', data);
       if (data && data.dataURL) {
         avatar.setHeadImage(data.dataURL, () => {
-          console.log('[AvatarScreen] Рисунок применён');
+          console.log('[Avatar] Рисунок применён');
           render();
+          Toast.show('Лицо нарисовано!');
         });
-        Toast.show('Лицо нарисовано!');
       } else {
+        console.warn('[Avatar] Рисунок не найден в IndexedDB');
         Toast.show('Рисунок не найден');
       }
-    }, 100);
+    }, 200);
   }
 
   // ---------- ПОЛ ----------
@@ -150,7 +153,7 @@ export function AvatarScreen(root) {
   screen.querySelector('#btn-gallery').onclick = () => fileInput.click();
 
   screen.querySelector('#btn-draw-face').onclick = () => {
-    console.log('[AvatarScreen] → Рисование лица');
+    console.log('[Avatar] → Рисование лица');
     State.drawReturnTo = { screen: 'avatar' };
     Router.go('draw', {
       assetKey: 'face_drawing',
@@ -188,7 +191,6 @@ export function AvatarScreen(root) {
       cropImage = img;
       resizeCropper();
 
-      // Начальный масштаб: чтобы картинка заполнила круг
       const circleR = Math.min(cropCanvas.width, cropCanvas.height) * 0.35;
       const fitScale = (circleR * 2) / Math.min(img.width, img.height);
       cropScale = fitScale;
@@ -209,7 +211,6 @@ export function AvatarScreen(root) {
     cropCtx.fillStyle = '#000';
     cropCtx.fillRect(0, 0, w, h);
 
-    // Рисуем фото с учётом offset и scale
     const dw = cropImage.width * cropScale;
     const dh = cropImage.height * cropScale;
     const dx = w / 2 - dw / 2 + cropOffset.x;
@@ -217,7 +218,6 @@ export function AvatarScreen(root) {
 
     cropCtx.drawImage(cropImage, dx, dy, dw, dh);
 
-    // Затемнение снаружи круга
     const circleR = Math.min(w, h) * 0.35;
     const cx = w / 2;
     const cy = h / 2;
@@ -230,7 +230,6 @@ export function AvatarScreen(root) {
     cropCtx.fill();
     cropCtx.restore();
 
-    // Контур круга
     cropCtx.strokeStyle = '#e8b84b';
     cropCtx.lineWidth = 3;
     cropCtx.beginPath();
@@ -242,48 +241,58 @@ export function AvatarScreen(root) {
   let dragging = false;
   let dragStart = { x: 0, y: 0 };
   let offsetStart = { x: 0, y: 0 };
+  let cropRaf = null;
+  let cropPending = false;
 
   const getPos = (e) => {
     const t = e.touches?.[0] || e;
     return { x: t.clientX, y: t.clientY };
   };
 
+  const scheduleDraw = () => {
+    if (cropPending) return;
+    cropPending = true;
+    cropRaf = requestAnimationFrame(() => {
+      cropPending = false;
+      drawCropper();
+    });
+  };
+
   cropCanvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
     dragging = true;
     const p = getPos(e);
     dragStart = p;
     offsetStart = { ...cropOffset };
-    cropCanvas.setPointerCapture?.(e.pointerId);
+    try { cropCanvas.setPointerCapture(e.pointerId); } catch (_) {}
   });
 
   cropCanvas.addEventListener('pointermove', (e) => {
     if (!dragging) return;
+    e.preventDefault();
     const p = getPos(e);
     cropOffset.x = offsetStart.x + (p.x - dragStart.x);
     cropOffset.y = offsetStart.y + (p.y - dragStart.y);
-    drawCropper();
+    scheduleDraw();
   });
 
   cropCanvas.addEventListener('pointerup', () => { dragging = false; });
   cropCanvas.addEventListener('pointercancel', () => { dragging = false; });
 
-  // Zoom кнопки
   screen.querySelector('#crop-zoom-in').onclick = () => {
     cropScale *= 1.2;
-    drawCropper();
+    scheduleDraw();
   };
   screen.querySelector('#crop-zoom-out').onclick = () => {
     cropScale = Math.max(cropMinScale, cropScale / 1.2);
-    drawCropper();
+    scheduleDraw();
   };
 
-  // Отмена
   screen.querySelector('#crop-cancel').onclick = () => {
     overlay.style.display = 'none';
     cropImage = null;
   };
 
-  // Готово — обрезаем по кругу
   screen.querySelector('#crop-ok').onclick = () => {
     const w = cropCanvas.width;
     const h = cropCanvas.height;
@@ -291,20 +300,17 @@ export function AvatarScreen(root) {
     const cx = w / 2;
     const cy = h / 2;
 
-    // Создаём canvas с квадратом 256x256
     const out = document.createElement('canvas');
     out.width = 256;
     out.height = 256;
     const outCtx = out.getContext('2d');
 
-    // Круглая обрезка
     outCtx.save();
     outCtx.beginPath();
     outCtx.arc(128, 128, 128, 0, Math.PI * 2);
     outCtx.closePath();
     outCtx.clip();
 
-    // Рисуем область из cropCanvas
     const sx = cx - circleR;
     const sy = cy - circleR;
     const sSize = circleR * 2;

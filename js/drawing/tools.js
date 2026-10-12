@@ -14,11 +14,8 @@ export const PALETTE = [
   '#ffffff', // white
 ];
 
-// Размеры кисти — крупнее (для пальца)
-export const SIZES = [4, 8, 16, 32];
-
-// Размер кисти по умолчанию
-export const BRUSH_SIZE = 8;
+// Единый размер кисти
+export const BRUSH_SIZE = 10;
 
 // Множитель ластика
 export const ERASER_MULTIPLIER = 3;

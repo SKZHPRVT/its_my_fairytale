@@ -36,6 +36,10 @@
   padding: 12px;
 }
 
+.avatar-screen .screen-header {
+  padding-top: 8px;
+}
+
 .avatar-preview {
   display: flex;
   align-items: center;
