@@ -14,8 +14,8 @@ export const PALETTE = [
   '#ffffff', // white
 ];
 
-// Один размер кисти — вдвое больше прежнего (было 4, стало 8)
-export const BRUSH_SIZE = 8;
+// Единый размер кисти (финал)
+export const BRUSH_SIZE = 10;
 
 // Ластик — в 3 раза толще кисти
 export const ERASER_MULTIPLIER = 3;
