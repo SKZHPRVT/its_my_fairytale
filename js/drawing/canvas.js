@@ -2,7 +2,7 @@
 // CANVAS — холст для рисования
 // ============================================
 
-import { DEFAULT_SIZE } from './tools.js';
+import { BRUSH_SIZE, ERASER_MULTIPLIER } from './tools.js';
 
 export class DrawCanvas {
   constructor(container, options = {}) {
@@ -10,7 +10,7 @@ export class DrawCanvas {
     this.width = options.width || 800;
     this.height = options.height || 800;
     this.color = options.color || '#3a2e1f';
-    this.size = options.size || DEFAULT_SIZE;
+    this.size = options.size || BRUSH_SIZE;
     this.tool = 'brush'; // 'brush' | 'eraser'
 
     this._createDOM();
@@ -48,7 +48,7 @@ export class DrawCanvas {
       e.preventDefault();
       drawing = true;
       const { x, y } = getPos(e);
-      // Рисуем сразу точку (чтобы короткое касание тоже оставляло след)
+      // Рисуем точку — чтобы короткое касание оставляло след
       this._drawDot(x, y);
       this._last = { x, y };
     };
@@ -61,9 +61,7 @@ export class DrawCanvas {
       this._last = { x, y };
     };
 
-    const end = () => {
-      drawing = false;
-    };
+    const end = () => { drawing = false; };
 
     // Мышь
     this.canvas.addEventListener('mousedown', start);
@@ -80,8 +78,9 @@ export class DrawCanvas {
   _applyStyle() {
     this.ctx.strokeStyle = this.tool === 'eraser' ? '#ffffff' : this.color;
     this.ctx.fillStyle   = this.tool === 'eraser' ? '#ffffff' : this.color;
-    // Ластик — в 3 раза толще
-    this.ctx.lineWidth = this.tool === 'eraser' ? this.size * 3 : this.size;
+    this.ctx.lineWidth = this.tool === 'eraser'
+      ? this.size * ERASER_MULTIPLIER
+      : this.size;
   }
 
   _drawDot(x, y) {
@@ -101,7 +100,6 @@ export class DrawCanvas {
   }
 
   setColor(color) { this.color = color; }
-  setSize(size)   { this.size = size; }
   setTool(tool)   { this.tool = tool; }
 
   clear() {

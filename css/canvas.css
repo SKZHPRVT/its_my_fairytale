@@ -41,27 +41,6 @@
   background: var(--accent-yellow);
 }
 
-/* Панель размеров кисти */
-.draw-sizes {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 8px;
-  background: var(--bg-card);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-soft);
-  flex-shrink: 0;
-  overflow-x: auto;
-}
-
-.size-btn {
-  transition: background 0.15s, transform 0.1s;
-}
-
-.size-btn:active {
-  transform: scale(0.9);
-}
-
 /* Canvas */
 .draw-canvas-wrap {
   flex: 1;
