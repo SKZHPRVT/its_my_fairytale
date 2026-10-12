@@ -1,10 +1,10 @@
 // ============================================
 // AVATAR SCREEN — создание персонажа
+// Сохранение в IndexedDB (не localStorage) — поддержка фото
 // ============================================
 
 import { State } from '../core/state.js';
 import { Router } from '../core/router.js';
-import { Storage } from '../core/storage.js';
 import { Avatar } from '../player/avatar.js';
 import { loadDrawing } from '../drawing/export.js';
 import { Toast } from '../ui/toast.js';
@@ -91,7 +91,6 @@ export function AvatarScreen(root) {
   const saved = State.player.avatar || {};
   let avatar = new Avatar(saved);
 
-  // ---------- РЕНДЕР ----------
   const render = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#fdf6e3';
@@ -108,18 +107,14 @@ export function AvatarScreen(root) {
   if (returnTo && returnTo.screen === 'avatar') {
     console.log('[Avatar] Возврат из рисования');
     setTimeout(async () => {
-      console.log('[Avatar] Загружаю face_drawing...');
       const data = await loadDrawing('face_drawing');
-      console.log('[Avatar] loadDrawing вернул:', data);
+      console.log('[Avatar] loadDrawing вернул:', data ? 'OK' : 'null');
       if (data && data.dataURL) {
         avatar.setHeadImage(data.dataURL, () => {
           console.log('[Avatar] Рисунок применён');
           render();
           Toast.show('Лицо нарисовано!');
         });
-      } else {
-        console.warn('[Avatar] Рисунок не найден в IndexedDB');
-        Toast.show('Рисунок не найден');
       }
     }, 200);
   }
@@ -129,7 +124,6 @@ export function AvatarScreen(root) {
   genderRow.querySelectorAll('.avatar-option').forEach(btn => {
     if (btn.dataset.gender === avatar.gender) btn.classList.add('selected');
     else btn.classList.remove('selected');
-
     btn.onclick = () => {
       avatar.gender = btn.dataset.gender;
       genderRow.querySelectorAll('.avatar-option').forEach(b => b.classList.remove('selected'));
@@ -153,7 +147,6 @@ export function AvatarScreen(root) {
   screen.querySelector('#btn-gallery').onclick = () => fileInput.click();
 
   screen.querySelector('#btn-draw-face').onclick = () => {
-    console.log('[Avatar] → Рисование лица');
     State.drawReturnTo = { screen: 'avatar' };
     Router.go('draw', {
       assetKey: 'face_drawing',
@@ -237,7 +230,6 @@ export function AvatarScreen(root) {
     cropCtx.stroke();
   };
 
-  // Drag
   let dragging = false;
   let dragStart = { x: 0, y: 0 };
   let offsetStart = { x: 0, y: 0 };
@@ -300,24 +292,28 @@ export function AvatarScreen(root) {
     const cx = w / 2;
     const cy = h / 2;
 
+    // Обрезаем в 128x128 JPEG (сжатие!)
     const out = document.createElement('canvas');
-    out.width = 256;
-    out.height = 256;
+    out.width = 128;
+    out.height = 128;
     const outCtx = out.getContext('2d');
 
     outCtx.save();
     outCtx.beginPath();
-    outCtx.arc(128, 128, 128, 0, Math.PI * 2);
+    outCtx.arc(64, 64, 64, 0, Math.PI * 2);
     outCtx.closePath();
     outCtx.clip();
 
     const sx = cx - circleR;
     const sy = cy - circleR;
     const sSize = circleR * 2;
-    outCtx.drawImage(cropCanvas, sx, sy, sSize, sSize, 0, 0, 256, 256);
+    outCtx.drawImage(cropCanvas, sx, sy, sSize, sSize, 0, 0, 128, 128);
     outCtx.restore();
 
-    const dataURL = out.toDataURL('image/png');
+    // JPEG 0.8 — сжатие
+    const dataURL = out.toDataURL('image/jpeg', 0.8);
+    console.log('[Avatar] Фото сжато, размер DataURL:', dataURL.length, 'символов');
+
     avatar.setHeadImage(dataURL, () => {
       render();
       overlay.style.display = 'none';
@@ -344,9 +340,16 @@ export function AvatarScreen(root) {
   // ---------- СОХРАНЕНИЕ ----------
   screen.querySelector('#btn-back').onclick = () => Router.back();
 
-  screen.querySelector('#btn-save').onclick = () => {
-    State.player.avatar = avatar.serialize();
-    Storage.save('avatar', State.player.avatar);
+  screen.querySelector('#btn-save').onclick = async () => {
+    const config = avatar.serialize();
+    console.log('[Avatar] Сохраняю, размер headImage:', config.headImage?.length || 0, 'символов');
+
+    // Сохраняем в IndexedDB (не localStorage!) — поддержка больших фото
+    await Avatar.save(config);
+
+    // Также синхронизируем State
+    State.player.avatar = config;
+
     Toast.show('Персонаж сохранён!');
     Router.go('menu');
   };

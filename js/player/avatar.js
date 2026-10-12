@@ -3,6 +3,10 @@
 // Голова: пустой круг ИЛИ фото внутри
 // ============================================
 
+import { Storage } from '../core/storage.js';
+
+const STORAGE_KEY = 'avatar';
+
 export class Avatar {
   constructor(config = {}) {
     this.gender = config.gender || 'boy';
@@ -12,6 +16,10 @@ export class Avatar {
 
     this._headImgEl = null;
     this._onReady = null;
+
+    if (this.headImage) {
+      this._loadHeadImage(this.headImage);
+    }
   }
 
   _loadHeadImage(dataURL) {
@@ -32,7 +40,6 @@ export class Avatar {
     img.src = dataURL;
   }
 
-  // setHeadImage(dataURL, onReady?)
   setHeadImage(dataURL, onReady = null) {
     this.headImage = dataURL;
     this._onReady = onReady;
@@ -62,7 +69,6 @@ export class Avatar {
     // ----- ГОЛОВА -----
     ctx.save();
 
-    // Фото внутри круга
     if (this._headImgEl) {
       ctx.beginPath();
       ctx.arc(0, headCY, headR, 0, Math.PI * 2);
@@ -74,7 +80,6 @@ export class Avatar {
       ctx.restore();
     }
 
-    // Контур
     ctx.beginPath();
     ctx.arc(0, headCY, headR, 0, Math.PI * 2);
     ctx.strokeStyle = this.color;
@@ -137,5 +142,17 @@ export class Avatar {
 
   static deserialize(data) {
     return new Avatar(data);
+  }
+
+  // ---------- СОХРАНЕНИЕ / ЗАГРУЗКА (IndexedDB) ----------
+  static async save(config) {
+    await Storage.saveData(STORAGE_KEY, config);
+    console.log('[Avatar] Сохранён в IndexedDB');
+  }
+
+  static async load() {
+    const data = await Storage.loadData(STORAGE_KEY);
+    console.log('[Avatar] Загружен из IndexedDB:', data ? 'OK' : 'null');
+    return data;
   }
 }

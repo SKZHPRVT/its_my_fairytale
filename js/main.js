@@ -8,6 +8,7 @@ import { Storage } from './core/storage.js';
 import { Telegram } from './core/telegram.js';
 import { Inventory } from './player/inventory.js';
 import { Progression } from './player/progression.js';
+import { Avatar } from './player/avatar.js';
 import { Toast } from './ui/toast.js';
 
 import { MenuScreen } from './screens/menu.js';
@@ -18,7 +19,6 @@ import { MinigameScreen } from './screens/minigame.js';
 
 console.log('[Main] Модуль main.js загружен');
 
-// ---------- Инициализация ----------
 async function boot() {
   console.log('[Boot] Its My Fairytale starting...');
 
@@ -27,13 +27,16 @@ async function boot() {
     Inventory.init();
     Progression.init();
 
-    // Восстанавливаем аватар
-    const savedAvatar = Storage.load('avatar', null);
+    // Загружаем аватар из IndexedDB (асинхронно)
+    const savedAvatar = await Avatar.load();
     if (savedAvatar) {
       State.player.avatar = savedAvatar;
+      console.log('[Boot] Аватар загружен из IndexedDB');
+    } else {
+      console.log('[Boot] Аватар не найден');
     }
 
-    // Восстанавливаем прогресс сказок
+    // Прогресс сказок
     const completed = Storage.load('stories_completed', {});
     State.stories.completed = completed;
 
@@ -46,7 +49,6 @@ async function boot() {
 
     console.log('[Boot] Экраны зарегистрированы');
 
-    // Стартовый экран
     const startScreen = State.player.avatar ? 'menu' : 'avatar';
     Router.go(startScreen);
 
@@ -60,9 +62,6 @@ async function boot() {
   }
 }
 
-// ---------- Запуск ----------
-// Модули выполняются ПОСЛЕ DOMContentLoaded,
-// поэтому проверяем readyState
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', boot);
 } else {
