@@ -1,6 +1,6 @@
 // ============================================
 // AVATAR SCREEN — создание персонажа
-// Сохранение в IndexedDB (не localStorage) — поддержка фото
+// Фото сжимается до 64x64 JPEG (~5 KB, влезает в localStorage)
 // ============================================
 
 import { State } from '../core/state.js';
@@ -68,7 +68,6 @@ export function AvatarScreen(root) {
       <button class="btn btn-block" id="btn-save">Готово ✓</button>
     </div>
 
-    <!-- КРОППЕР -->
     <div id="cropper-overlay" style="display:none; position:fixed; inset:0; background:#000; z-index:9000;">
       <div style="position:absolute; top:calc(16px + env(safe-area-inset-top)); left:0; right:0; text-align:center; color:#fff; font-family:sans-serif; font-size:14px; z-index:10; padding:0 16px;">
         Двигай фото · Масштабируй кнопками
@@ -233,7 +232,6 @@ export function AvatarScreen(root) {
   let dragging = false;
   let dragStart = { x: 0, y: 0 };
   let offsetStart = { x: 0, y: 0 };
-  let cropRaf = null;
   let cropPending = false;
 
   const getPos = (e) => {
@@ -244,7 +242,7 @@ export function AvatarScreen(root) {
   const scheduleDraw = () => {
     if (cropPending) return;
     cropPending = true;
-    cropRaf = requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
       cropPending = false;
       drawCropper();
     });
@@ -285,6 +283,7 @@ export function AvatarScreen(root) {
     cropImage = null;
   };
 
+  // ВАЖНО: сжимаем до 64x64 JPEG (~5 KB)
   screen.querySelector('#crop-ok').onclick = () => {
     const w = cropCanvas.width;
     const h = cropCanvas.height;
@@ -292,27 +291,26 @@ export function AvatarScreen(root) {
     const cx = w / 2;
     const cy = h / 2;
 
-    // Обрезаем в 128x128 JPEG (сжатие!)
     const out = document.createElement('canvas');
-    out.width = 128;
-    out.height = 128;
+    out.width = 64;   // ← было 128
+    out.height = 64;
     const outCtx = out.getContext('2d');
 
     outCtx.save();
     outCtx.beginPath();
-    outCtx.arc(64, 64, 64, 0, Math.PI * 2);
+    outCtx.arc(32, 32, 32, 0, Math.PI * 2);
     outCtx.closePath();
     outCtx.clip();
 
     const sx = cx - circleR;
     const sy = cy - circleR;
     const sSize = circleR * 2;
-    outCtx.drawImage(cropCanvas, sx, sy, sSize, sSize, 0, 0, 128, 128);
+    outCtx.drawImage(cropCanvas, sx, sy, sSize, sSize, 0, 0, 64, 64);
     outCtx.restore();
 
-    // JPEG 0.8 — сжатие
-    const dataURL = out.toDataURL('image/jpeg', 0.8);
-    console.log('[Avatar] Фото сжато, размер DataURL:', dataURL.length, 'символов');
+    // JPEG 0.7 — максимальное сжатие
+    const dataURL = out.toDataURL('image/jpeg', 0.7);
+    console.log('[Avatar] Фото сжато, размер:', dataURL.length, 'символов (~' + Math.round(dataURL.length / 1024) + ' KB)');
 
     avatar.setHeadImage(dataURL, () => {
       render();
@@ -340,18 +338,25 @@ export function AvatarScreen(root) {
   // ---------- СОХРАНЕНИЕ ----------
   screen.querySelector('#btn-back').onclick = () => Router.back();
 
-  screen.querySelector('#btn-save').onclick = async () => {
+  screen.querySelector('#btn-save').onclick = () => {
     const config = avatar.serialize();
     console.log('[Avatar] Сохраняю, размер headImage:', config.headImage?.length || 0, 'символов');
 
-    // Сохраняем в IndexedDB (не localStorage!) — поддержка больших фото
-    await Avatar.save(config);
+    // Сохраняем в localStorage
+    import('../core/storage.js').then(({ Storage }) => {
+      const ok = Storage.save('avatar', config);
+      console.log('[Avatar] Storage.save вернул:', ok);
 
-    // Также синхронизируем State
-    State.player.avatar = config;
+      // Синхронизируем State
+      State.player.avatar = config;
 
-    Toast.show('Персонаж сохранён!');
-    Router.go('menu');
+      if (ok) {
+        Toast.show('Персонаж сохранён!');
+        Router.go('menu');
+      } else {
+        Toast.show('Ошибка сохранения: хранилище переполнено');
+      }
+    });
   };
 
   return () => {};

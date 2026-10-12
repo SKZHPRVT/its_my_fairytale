@@ -1,83 +1,20 @@
 // ============================================
-// STORAGE — localStorage + IndexedDB
-// С обработкой конфликта версий БД
+// STORAGE — localStorage only (без IndexedDB)
+// Работает для небольших данных (сжатых фото)
 // ============================================
 
 const LS_PREFIX = 'imf_';
-const IDB_NAME = 'imf_db';
-const IDB_STORE_DRAWINGS = 'drawings';
-const IDB_STORE_DATA = 'data';
-const IDB_VERSION = 2;   // ← увеличили (было 1)
-
-let _dbPromise = null;
-
-function openDB() {
-  if (_dbPromise) return _dbPromise;
-
-  _dbPromise = new Promise((resolve, reject) => {
-    // Сначала попробуем удалить старую БД, если версия не совпадает
-    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
-
-    req.onupgradeneeded = (e) => {
-      console.log('[Storage] IDB upgrade:', e.oldVersion, '→', e.newVersion);
-      const db = req.result;
-
-      // Создаём stores, если их нет
-      if (!db.objectStoreNames.contains(IDB_STORE_DRAWINGS)) {
-        db.createObjectStore(IDB_STORE_DRAWINGS);
-      }
-      if (!db.objectStoreNames.contains(IDB_STORE_DATA)) {
-        db.createObjectStore(IDB_STORE_DATA);
-      }
-    };
-
-    req.onsuccess = () => {
-      const db = req.result;
-      console.log('[Storage] IDB открыт, version:', db.version, 'stores:', [...db.objectStoreNames]);
-
-      // Проверяем, что оба store есть
-      const missing = [];
-      if (!db.objectStoreNames.contains(IDB_STORE_DRAWINGS)) missing.push(IDB_STORE_DRAWINGS);
-      if (!db.objectStoreNames.contains(IDB_STORE_DATA)) missing.push(IDB_STORE_DATA);
-
-      if (missing.length > 0) {
-        console.warn('[Storage] IDB: отсутствуют stores', missing, '— удаляем БД и пересоздаём');
-        db.close();
-        _dbPromise = null;
-
-        const delReq = indexedDB.deleteDatabase(IDB_NAME);
-        delReq.onsuccess = () => {
-          console.log('[Storage] IDB удалён, пересоздаём');
-          openDB().then(resolve).catch(reject);
-        };
-        delReq.onerror = () => reject(delReq.error);
-        return;
-      }
-
-      resolve(db);
-    };
-
-    req.onerror = () => {
-      console.error('[Storage] IDB ошибка открытия:', req.error);
-      reject(req.error);
-    };
-
-    req.onblocked = () => {
-      console.warn('[Storage] IDB заблокирован — закройте другие вкладки');
-    };
-  });
-
-  return _dbPromise;
-}
 
 export const Storage = {
   // ---------- localStorage ----------
   save(key, value) {
     try {
-      localStorage.setItem(LS_PREFIX + key, JSON.stringify(value));
+      const json = JSON.stringify(value);
+      localStorage.setItem(LS_PREFIX + key, json);
+      console.log('[Storage] save OK:', key, '(' + json.length + ' символов)');
       return true;
     } catch (e) {
-      console.error('[Storage] localStorage save error:', e);
+      console.error('[Storage] save error:', e);
       return false;
     }
   },
@@ -85,30 +22,30 @@ export const Storage = {
   load(key, fallback = null) {
     try {
       const raw = localStorage.getItem(LS_PREFIX + key);
-      return raw ? JSON.parse(raw) : fallback;
+      if (!raw) return fallback;
+      return JSON.parse(raw);
     } catch (e) {
-      console.error('[Storage] localStorage load error:', e);
+      console.error('[Storage] load error:', e);
       return fallback;
     }
   },
 
   remove(key) {
-    try {
-      localStorage.removeItem(LS_PREFIX + key);
-    } catch (e) {}
+    try { localStorage.removeItem(LS_PREFIX + key); } catch (e) {}
   },
 
-  // ---------- IndexedDB: рисунки ----------
+  // ---------- Заглушки для IndexedDB API (чтобы не падал код) ----------
   async saveDrawing(key, data) {
+    // Сохраняем рисунки в localStorage тоже (сжатые)
     try {
-      const db = await openDB();
-      return await new Promise((resolve, reject) => {
-        const tx = db.transaction(IDB_STORE_DRAWINGS, 'readwrite');
-        tx.objectStore(IDB_STORE_DRAWINGS).put(data, key);
-        tx.oncomplete = () => resolve(true);
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
-      });
+      const json = JSON.stringify(data);
+      if (json.length > 4 * 1024 * 1024) {
+        console.warn('[Storage] Рисунок слишком большой для localStorage:', json.length);
+        return false;
+      }
+      localStorage.setItem(LS_PREFIX + 'drawing_' + key, json);
+      console.log('[Storage] saveDrawing OK:', key, '(' + json.length + ' символов)');
+      return true;
     } catch (e) {
       console.error('[Storage] saveDrawing error:', e);
       return false;
@@ -117,13 +54,9 @@ export const Storage = {
 
   async loadDrawing(key) {
     try {
-      const db = await openDB();
-      return await new Promise((resolve, reject) => {
-        const tx = db.transaction(IDB_STORE_DRAWINGS, 'readonly');
-        const req = tx.objectStore(IDB_STORE_DRAWINGS).get(key);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
-      });
+      const raw = localStorage.getItem(LS_PREFIX + 'drawing_' + key);
+      if (!raw) return null;
+      return JSON.parse(raw);
     } catch (e) {
       console.error('[Storage] loadDrawing error:', e);
       return null;
@@ -132,63 +65,23 @@ export const Storage = {
 
   async deleteDrawing(key) {
     try {
-      const db = await openDB();
-      return await new Promise((resolve, reject) => {
-        const tx = db.transaction(IDB_STORE_DRAWINGS, 'readwrite');
-        tx.objectStore(IDB_STORE_DRAWINGS).delete(key);
-        tx.oncomplete = () => resolve(true);
-        tx.onerror = () => reject(tx.error);
-      });
+      localStorage.removeItem(LS_PREFIX + 'drawing_' + key);
+      return true;
     } catch (e) {
-      console.error('[Storage] deleteDrawing error:', e);
       return false;
     }
   },
 
-  // ---------- IndexedDB: данные (аватар, инвентарь и т.д.) ----------
   async saveData(key, value) {
-    try {
-      const db = await openDB();
-      return await new Promise((resolve, reject) => {
-        const tx = db.transaction(IDB_STORE_DATA, 'readwrite');
-        tx.objectStore(IDB_STORE_DATA).put(value, key);
-        tx.oncomplete = () => resolve(true);
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
-      });
-    } catch (e) {
-      console.error('[Storage] saveData error:', e);
-      return false;
-    }
+    return this.save('data_' + key, value);
   },
 
   async loadData(key) {
-    try {
-      const db = await openDB();
-      return await new Promise((resolve, reject) => {
-        const tx = db.transaction(IDB_STORE_DATA, 'readonly');
-        const req = tx.objectStore(IDB_STORE_DATA).get(key);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
-      });
-    } catch (e) {
-      console.error('[Storage] loadData error:', e);
-      return null;
-    }
+    return this.load('data_' + key);
   },
 
   async deleteData(key) {
-    try {
-      const db = await openDB();
-      return await new Promise((resolve, reject) => {
-        const tx = db.transaction(IDB_STORE_DATA, 'readwrite');
-        tx.objectStore(IDB_STORE_DATA).delete(key);
-        tx.oncomplete = () => resolve(true);
-        tx.onerror = () => reject(tx.error);
-      });
-    } catch (e) {
-      console.error('[Storage] deleteData error:', e);
-      return false;
-    }
+    this.remove('data_' + key);
+    return true;
   },
 };
