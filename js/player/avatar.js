@@ -1,6 +1,5 @@
 // ============================================
 // AVATAR — персонаж (стикман)
-// Голова: пустой круг ИЛИ фото внутри
 // ============================================
 
 import { Storage } from '../core/storage.js';
@@ -46,7 +45,6 @@ export class Avatar {
     this._loadHeadImage(dataURL);
   }
 
-  // ---------- РЕНДЕР ----------
   render(ctx, x, y, scale = 1) {
     const s = scale * this.scale;
 
@@ -66,7 +64,7 @@ export class Avatar {
     const armX = 28;
     const lineW = 6;
 
-    // ----- ГОЛОВА -----
+    // Голова
     ctx.save();
 
     if (this._headImgEl) {
@@ -85,10 +83,9 @@ export class Avatar {
     ctx.strokeStyle = this.color;
     ctx.lineWidth = lineW * 0.7;
     ctx.stroke();
-
     ctx.restore();
 
-    // ----- ТЕЛО -----
+    // Тело
     ctx.strokeStyle = this.color;
     ctx.lineWidth = lineW;
     ctx.fillStyle = this.color;
@@ -144,15 +141,26 @@ export class Avatar {
     return new Avatar(data);
   }
 
-  // ---------- СОХРАНЕНИЕ / ЗАГРУЗКА (IndexedDB) ----------
+  // ---------- СОХРАНЕНИЕ / ЗАГРУЗКА ----------
   static async save(config) {
-    await Storage.saveData(STORAGE_KEY, config);
-    console.log('[Avatar] Сохранён в IndexedDB');
+    try {
+      const ok = await Storage.saveData(STORAGE_KEY, config);
+      console.log('[Avatar] Сохранён в IndexedDB:', ok);
+      return ok;
+    } catch (e) {
+      console.error('[Avatar] Ошибка сохранения:', e);
+      return false;
+    }
   }
 
   static async load() {
-    const data = await Storage.loadData(STORAGE_KEY);
-    console.log('[Avatar] Загружен из IndexedDB:', data ? 'OK' : 'null');
-    return data;
+    try {
+      const data = await Storage.loadData(STORAGE_KEY);
+      console.log('[Avatar] Загружен из IndexedDB:', data ? 'OK' : 'null');
+      return data;
+    } catch (e) {
+      console.error('[Avatar] Ошибка загрузки:', e);
+      return null;
+    }
   }
 }

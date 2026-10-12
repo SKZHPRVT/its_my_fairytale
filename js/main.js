@@ -22,43 +22,53 @@ console.log('[Main] Модуль main.js загружен');
 async function boot() {
   console.log('[Boot] Its My Fairytale starting...');
 
-  try {
-    Telegram.init();
-    Inventory.init();
-    Progression.init();
+  // ---- Инициализация базовых модулей (не критично, если упадёт) ----
+  try { Telegram.init(); } catch (e) { console.error('[Boot] Telegram:', e); }
+  try { Inventory.init(); } catch (e) { console.error('[Boot] Inventory:', e); }
+  try { Progression.init(); } catch (e) { console.error('[Boot] Progression:', e); }
 
-    // Загружаем аватар из IndexedDB (асинхронно)
+  // ---- Загрузка аватара (может упасть — не блокируем boot) ----
+  try {
     const savedAvatar = await Avatar.load();
     if (savedAvatar) {
       State.player.avatar = savedAvatar;
-      console.log('[Boot] Аватар загружен из IndexedDB');
+      console.log('[Boot] Аватар загружен');
     } else {
       console.log('[Boot] Аватар не найден');
     }
+  } catch (e) {
+    console.error('[Boot] Ошибка загрузки аватара:', e);
+  }
 
-    // Прогресс сказок
+  // ---- Прогресс сказок ----
+  try {
     const completed = Storage.load('stories_completed', {});
     State.stories.completed = completed;
+  } catch (e) {
+    console.error('[Boot] Ошибка загрузки прогресса:', e);
+  }
 
-    // Регистрируем экраны
+  // ---- Регистрация экранов (критично!) ----
+  try {
     Router.register('menu',     MenuScreen);
     Router.register('avatar',   AvatarScreen);
     Router.register('draw',     DrawScreen);
     Router.register('story',    StoryScreen);
     Router.register('minigame', MinigameScreen);
-
     console.log('[Boot] Экраны зарегистрированы');
+  } catch (e) {
+    console.error('[Boot] Ошибка регистрации экранов:', e);
+  }
 
+  // ---- Стартовый экран ----
+  try {
     const startScreen = State.player.avatar ? 'menu' : 'avatar';
     Router.go(startScreen);
-
     console.log('[Boot] Ready. Screen:', startScreen);
   } catch (e) {
-    console.error('[Boot] Ошибка инициализации:', e);
-    document.body.insertAdjacentHTML('beforeend',
-      '<div style="position:fixed;bottom:0;left:0;right:0;background:#c00;color:#fff;padding:12px;font-family:monospace;font-size:12px;z-index:99999;">' +
-      '❌ BOOT ERROR: ' + (e.message || e) + '</div>'
-    );
+    console.error('[Boot] Ошибка запуска экрана:', e);
+    // Fallback — покажем меню
+    try { Router.go('menu'); } catch (_) {}
   }
 }
 
