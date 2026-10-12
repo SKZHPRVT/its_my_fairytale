@@ -1,8 +1,8 @@
 /* ============================================
-   SCREENS — конкретные экраны (menu, avatar, game)
+   SCREENS — конкретные экраны
    ============================================ */
 
-/* Главное меню */
+/* ============ ГЛАВНОЕ МЕНЮ ============ */
 .menu-screen {
   justify-content: center;
   align-items: center;
@@ -31,40 +31,102 @@
   max-width: 320px;
 }
 
-/* Экран создания аватара */
-.avatar-screen .avatar-preview {
+/* ============ ЭКРАН ПЕРСОНАЖА ============ */
+.avatar-screen {
+  padding: 12px;
+}
+
+.avatar-preview {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background: var(--bg-paper-dark);
+  padding: 12px;
+  background: #fdf6e3;
   border-radius: var(--radius-lg);
-  min-height: 240px;
+  box-shadow: var(--shadow-soft);
+  margin-bottom: 16px;
 }
 
-.avatar-screen .color-picker {
+.avatar-preview canvas {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  display: block;
+}
+
+.avatar-section {
+  margin-bottom: 16px;
+}
+
+.avatar-label {
+  font-family: var(--font-hand);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.avatar-row {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
-  justify-content: center;
 }
 
-.color-swatch {
+.avatar-option {
+  flex: 1;
+  min-width: 100px;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  transition: all 0.15s;
+  cursor: pointer;
+  text-align: center;
+}
+
+.avatar-option:active {
+  transform: scale(0.96);
+}
+
+.avatar-option.selected {
+  border-color: var(--accent-yellow);
+  background: #fff8e6;
+}
+
+.avatar-colors {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.avatar-colors .color-swatch {
   width: 44px;
   height: 44px;
   border-radius: 50%;
   border: 3px solid transparent;
   box-shadow: var(--shadow-soft);
   transition: transform 0.1s;
+  cursor: pointer;
 }
 
-.color-swatch:active { transform: scale(0.9); }
-.color-swatch.selected {
+.avatar-colors .color-swatch:active {
+  transform: scale(0.9);
+}
+
+.avatar-colors .color-swatch.selected {
   border-color: var(--ink);
   transform: scale(1.1);
 }
 
-/* Экран сказки */
+/* ============ ЭКРАН СКАЗКИ ============ */
 .story-screen .story-text {
   font-family: var(--font-hand);
   font-size: 22px;
