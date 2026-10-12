@@ -1,6 +1,6 @@
 // ============================================
 // AVATAR SCREEN — создание персонажа
-// Стикман + круглая голова + фото внутрь круга
+// Стикман одного цвета + круглая голова + фото внутрь
 // ============================================
 
 import { State } from '../core/state.js';
@@ -9,23 +9,16 @@ import { Storage } from '../core/storage.js';
 import { Avatar } from '../player/avatar.js';
 import { Toast } from '../ui/toast.js';
 
-// Палитра цветов тела
+// Палитра — единый цвет тела
 const BODY_COLORS = [
   '#3a2e1f',  // тёмно-коричневый
+  '#000000',  // чёрный
   '#c75a5a',  // красный
   '#5a8fc7',  // синий
   '#7ba05b',  // зелёный
   '#a05ac7',  // фиолетовый
   '#e8b84b',  // жёлтый
-  '#000000',  // чёрный
-];
-
-// Палитра цвета головы (тон кожи)
-const SKIN_COLORS = [
-  '#f4d0a0',  // светлая
-  '#e8b88a',  // средняя
-  '#c78a5a',  // загорелая
-  '#8a5a3a',  // тёмная
+  '#f4d0a0',  // телесный
 ];
 
 export function AvatarScreen(root) {
@@ -68,14 +61,8 @@ export function AvatarScreen(root) {
 
       <!-- Цвет тела -->
       <div class="avatar-section">
-        <div class="avatar-label">ЦВЕТ ТЕЛА</div>
+        <div class="avatar-label">ЦВЕТ</div>
         <div class="avatar-colors" id="body-colors"></div>
-      </div>
-
-      <!-- Цвет головы -->
-      <div class="avatar-section">
-        <div class="avatar-label">ЦВЕТ ГОЛОВЫ</div>
-        <div class="avatar-colors" id="skin-colors"></div>
       </div>
     </div>
 
@@ -89,19 +76,17 @@ export function AvatarScreen(root) {
   const canvas = screen.querySelector('#avatar-canvas');
   const ctx = canvas.getContext('2d');
 
-  // Загружаем сохранённого аватара (если есть)
   const saved = State.player.avatar || {};
   let avatar = new Avatar(saved);
 
-  // ---------- РЕНДЕР ПРЕВЬЮ ----------
+  // ---------- РЕНДЕР ----------
   const render = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Фон
+    // Фон — светлый, чтобы чёрный стикман был виден
     ctx.fillStyle = '#fdf6e3';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Рисуем аватара по центру
     avatar.render(ctx, canvas.width / 2, canvas.height / 2 + 20, 1.6);
   };
 
@@ -130,7 +115,6 @@ export function AvatarScreen(root) {
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataURL = e.target.result;
-      // Обрезаем и уменьшаем картинку до квадрата 256x256
       cropToSquare(dataURL, 256).then(squareURL => {
         avatar.setHeadImage(squareURL);
         render();
@@ -143,7 +127,6 @@ export function AvatarScreen(root) {
   screen.querySelector('#btn-camera').onclick = () => fileInputCamera.click();
   screen.querySelector('#btn-gallery').onclick = () => fileInput.click();
   screen.querySelector('#btn-draw-face').onclick = () => {
-    // Переход на рисование лица (передаём callback)
     Router.go('draw', {
       assetKey: 'face_drawing',
       prompt: 'Нарисуй лицо',
@@ -167,7 +150,7 @@ export function AvatarScreen(root) {
   fileInput.onchange = (e) => loadImageFile(e.target.files[0]);
   fileInputCamera.onchange = (e) => loadImageFile(e.target.files[0]);
 
-  // ---------- ЦВЕТ ТЕЛА ----------
+  // ---------- ЦВЕТ ----------
   const bodyColors = screen.querySelector('#body-colors');
   BODY_COLORS.forEach(color => {
     const sw = document.createElement('button');
@@ -180,21 +163,6 @@ export function AvatarScreen(root) {
       render();
     };
     bodyColors.appendChild(sw);
-  });
-
-  // ---------- ЦВЕТ ГОЛОВЫ ----------
-  const skinColors = screen.querySelector('#skin-colors');
-  SKIN_COLORS.forEach(color => {
-    const sw = document.createElement('button');
-    sw.className = 'color-swatch' + (color === avatar.headColor ? ' selected' : '');
-    sw.style.background = color;
-    sw.onclick = () => {
-      avatar.headColor = color;
-      skinColors.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
-      sw.classList.add('selected');
-      render();
-    };
-    skinColors.appendChild(sw);
   });
 
   // ---------- СОХРАНЕНИЕ ----------
@@ -210,7 +178,7 @@ export function AvatarScreen(root) {
   return () => {};
 }
 
-// ---------- Вспомогательная: обрезать картинку в квадрат ----------
+// ---------- Обрезать картинку в квадрат ----------
 function cropToSquare(dataURL, size) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -220,7 +188,6 @@ function cropToSquare(dataURL, size) {
       c.height = size;
       const ctx = c.getContext('2d');
 
-      // Берём центральный квадрат
       const minSide = Math.min(img.width, img.height);
       const sx = (img.width - minSide) / 2;
       const sy = (img.height - minSide) / 2;
