@@ -3,35 +3,33 @@
 // ============================================
 
 export const State = {
-  // Текущий экран
   screen: 'menu',
 
-  // Игрок
   player: {
     name: null,
-    avatar: null,        // { body, head, color }
-    inventory: [],       // [{ id, name, emoji, power }]
+    avatar: null,
+    inventory: [],
     level: 1,
     xp: 0,
     achievements: [],
   },
 
-  // Прогресс по сказкам
   stories: {
     unlocked: [],
-    completed: {},       // { storyId: ['ending_a', 'ending_b'] }
+    completed: {},
     currentChapter: null,
     currentStoryId: null,
-    pendingChapter: null,   // ← НОВОЕ: куда вернуться после рисования
+    pendingChapter: null,
   },
 
-  // Текущие рисунки (в памяти, но сохраняются в IndexedDB)
-  drawings: {},          // { key: { dataURL, width, height } }
+  drawings: {},
 
-  // Слушатели
+  // Куда вернуться после экрана рисования
+  // { screen: 'avatar' | 'story', params: {...}, callback: fn }
+  drawReturnTo: null,
+
   _listeners: {},
 
-  // Подписка на изменения
   on(event, cb) {
     if (!this._listeners[event]) this._listeners[event] = [];
     this._listeners[event].push(cb);
@@ -46,7 +44,6 @@ export const State = {
     (this._listeners[event] || []).forEach(cb => cb(data));
   },
 
-  // Обновление с событием
   set(path, value) {
     const keys = path.split('.');
     let obj = this;

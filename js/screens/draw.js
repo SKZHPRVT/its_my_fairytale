@@ -1,11 +1,12 @@
 // ============================================
 // DRAW SCREEN — холст для рисования
+// Возврат туда, откуда пришёл (avatar / story / menu)
 // ============================================
 
 import { State } from '../core/state.js';
 import { Router } from '../core/router.js';
 import { DrawCanvas } from '../drawing/canvas.js';
-import { PALETTE } from '../drawing/tools.js';
+import { PALETTE, SIZES } from '../drawing/tools.js';
 import { saveDrawing } from '../drawing/export.js';
 import { Toast } from '../ui/toast.js';
 
@@ -26,16 +27,13 @@ export function DrawScreen(root, params = {}) {
       <button class="btn btn-ghost" id="btn-back">←</button>
       <div class="screen-title">${prompt}</div>
     </div>
-
     <div class="draw-toolbar">
-      <button class="draw-tool active" data-tool="brush" title="Кисть">✏️</button>
-      <button class="draw-tool" data-tool="eraser" title="Ластик">🧽</button>
-      <button class="draw-tool" id="btn-clear" title="Очистить">🗑️</button>
-      <div id="palette" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;"></div>
+      <button class="draw-tool active" data-tool="brush">✏️</button>
+      <button class="draw-tool" data-tool="eraser">🧽</button>
+      <button class="draw-tool" id="btn-clear">🗑️</button>
+      <div id="palette" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
     </div>
-
     <div class="draw-canvas-wrap" id="canvas-wrap"></div>
-
     <div class="screen-footer">
       <button class="btn btn-block" id="btn-done">Готово</button>
     </div>
@@ -48,10 +46,9 @@ export function DrawScreen(root, params = {}) {
     width: 800,
     height: 800,
     color: PALETTE[0],
-    // Размер берётся из BRUSH_SIZE в tools.js
+    size: 4,
   });
 
-  // ----- Палитра -----
   const paletteEl = screen.querySelector('#palette');
   PALETTE.forEach(color => {
     const sw = document.createElement('button');
@@ -63,7 +60,6 @@ export function DrawScreen(root, params = {}) {
     paletteEl.appendChild(sw);
   });
 
-  // ----- Инструменты -----
   screen.querySelectorAll('.draw-tool[data-tool]').forEach(btn => {
     btn.onclick = () => {
       screen.querySelectorAll('.draw-tool').forEach(b => b.classList.remove('active'));
@@ -74,14 +70,26 @@ export function DrawScreen(root, params = {}) {
 
   screen.querySelector('#btn-clear').onclick = () => drawCanvas.clear();
 
-  // ----- Назад -----
-  screen.querySelector('#btn-back').onclick = () => {
-    const storyId = State.stories.currentStoryId || 'prince_and_dragon';
-    Router.go('story', { storyId });
+  // ---------- НАЗАД ----------
+  const goBack = () => {
+    const returnTo = State.drawReturnTo;
+    State.drawReturnTo = null;
+
+    if (returnTo && returnTo.screen === 'avatar') {
+      Router.go('avatar');
+    } else if (returnTo && returnTo.screen === 'story') {
+      Router.go('story', { storyId: State.stories.currentStoryId || 'prince_and_dragon' });
+    } else {
+      Router.back();
+    }
   };
 
-  // ----- Готово -----
+  screen.querySelector('#btn-back').onclick = goBack;
+
+  // ---------- ГОТОВО ----------
   screen.querySelector('#btn-done').onclick = async () => {
+    console.log('[Draw] === ГОТОВО ===');
+
     const btn = screen.querySelector('#btn-done');
     btn.textContent = 'Сохраняю...';
     btn.disabled = true;
@@ -91,11 +99,25 @@ export function DrawScreen(root, params = {}) {
         removeWhite: !freeMode,
         tolerance: 30,
       });
+      console.log('[Draw] Сохранено:', result);
       Toast.show('Рисунок сохранён!');
+
       State.drawings[assetKey] = result;
 
-      const storyId = State.stories.currentStoryId || 'prince_and_dragon';
-      Router.go('story', { storyId });
+      // ---------- ВОЗВРАЩАЕМСЯ ТУДА, ОТКУДА ПРИШЛИ ----------
+      const returnTo = State.drawReturnTo;
+      State.drawReturnTo = null;
+
+      if (returnTo && returnTo.screen === 'avatar') {
+        console.log('[Draw] Возврат в avatar');
+        Router.go('avatar');
+      } else if (returnTo && returnTo.screen === 'story') {
+        console.log('[Draw] Возврат в story');
+        Router.go('story', { storyId: State.stories.currentStoryId || 'prince_and_dragon' });
+      } else {
+        console.log('[Draw] Возврат в menu');
+        Router.go('menu');
+      }
     } catch (e) {
       console.error('[Draw] Ошибка:', e);
       Toast.show('Ошибка: ' + e.message);
@@ -104,5 +126,8 @@ export function DrawScreen(root, params = {}) {
     }
   };
 
-  return () => drawCanvas.destroy();
+  return () => {
+    console.log('[Draw] Cleanup');
+    drawCanvas.destroy();
+  };
 }

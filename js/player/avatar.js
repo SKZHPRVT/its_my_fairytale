@@ -1,7 +1,6 @@
 // ============================================
 // AVATAR — персонаж (стикман)
-// Голова: пустой круг (без заливки) ИЛИ фото внутри
-// Контур круга — цвет тела
+// Голова: пустой круг ИЛИ фото внутри
 // ============================================
 
 export class Avatar {
@@ -12,25 +11,32 @@ export class Avatar {
     this.scale = config.scale || 1;
 
     this._headImgEl = null;
-    if (this.headImage) {
-      this._loadHeadImage(this.headImage);
-    }
+    this._onReady = null;
   }
 
   _loadHeadImage(dataURL) {
+    if (!dataURL) {
+      this._headImgEl = null;
+      if (this._onReady) this._onReady();
+      return;
+    }
     const img = new Image();
-    img.onload = () => { this._headImgEl = img; };
-    img.onerror = () => { console.warn('[Avatar] Не удалось загрузить headImage'); };
+    img.onload = () => {
+      this._headImgEl = img;
+      if (this._onReady) this._onReady();
+    };
+    img.onerror = () => {
+      console.warn('[Avatar] Не удалось загрузить headImage');
+      if (this._onReady) this._onReady();
+    };
     img.src = dataURL;
   }
 
-  setHeadImage(dataURL) {
+  // setHeadImage(dataURL, onReady?)
+  setHeadImage(dataURL, onReady = null) {
     this.headImage = dataURL;
-    if (dataURL) {
-      this._loadHeadImage(dataURL);
-    } else {
-      this._headImgEl = null;
-    }
+    this._onReady = onReady;
+    this._loadHeadImage(dataURL);
   }
 
   // ---------- РЕНДЕР ----------
@@ -44,7 +50,6 @@ export class Avatar {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // ----- Пропорции -----
     const headR = 22;
     const headCY = -60;
     const neckY = headCY + headR;
@@ -57,7 +62,7 @@ export class Avatar {
     // ----- ГОЛОВА -----
     ctx.save();
 
-    // 1. Если есть фото — рисуем ВНУТРИ круга (обрезаем по кругу)
+    // Фото внутри круга
     if (this._headImgEl) {
       ctx.beginPath();
       ctx.arc(0, headCY, headR, 0, Math.PI * 2);
@@ -68,9 +73,8 @@ export class Avatar {
       ctx.drawImage(this._headImgEl, -headR, headCY - headR, d, d);
       ctx.restore();
     }
-    // Если фото НЕТ — ничего не заливаем (внутри круга прозрачно)
 
-    // 2. Контур круга — цветом тела
+    // Контур
     ctx.beginPath();
     ctx.arc(0, headCY, headR, 0, Math.PI * 2);
     ctx.strokeStyle = this.color;
@@ -84,20 +88,17 @@ export class Avatar {
     ctx.lineWidth = lineW;
     ctx.fillStyle = this.color;
 
-    // Туловище
     ctx.beginPath();
     ctx.moveTo(0, neckY);
     ctx.lineTo(0, hipY);
     ctx.stroke();
 
-    // Руки
     ctx.beginPath();
     ctx.moveTo(-armX, armY);
     ctx.lineTo(0, neckY + 8);
     ctx.lineTo(armX, armY);
     ctx.stroke();
 
-    // Кисти
     ctx.beginPath();
     ctx.arc(-armX, armY, 5, 0, Math.PI * 2);
     ctx.fill();
@@ -105,14 +106,12 @@ export class Avatar {
     ctx.arc(armX, armY, 5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Ноги
     ctx.beginPath();
     ctx.moveTo(-armX, legY);
     ctx.lineTo(0, hipY);
     ctx.lineTo(armX, legY);
     ctx.stroke();
 
-    // Ступни
     ctx.beginPath();
     ctx.arc(-armX, legY, 5, 0, Math.PI * 2);
     ctx.fill();

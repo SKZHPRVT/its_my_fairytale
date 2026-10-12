@@ -1,24 +1,23 @@
 // ============================================
 // AVATAR SCREEN — создание персонажа
-// Стикман одного цвета + круглая голова + фото внутрь
 // ============================================
 
 import { State } from '../core/state.js';
 import { Router } from '../core/router.js';
 import { Storage } from '../core/storage.js';
 import { Avatar } from '../player/avatar.js';
+import { cropToSquare } from '../drawing/export.js';
 import { Toast } from '../ui/toast.js';
 
-// Палитра — единый цвет тела
 const BODY_COLORS = [
-  '#3a2e1f',  // тёмно-коричневый
-  '#000000',  // чёрный
-  '#c75a5a',  // красный
-  '#5a8fc7',  // синий
-  '#7ba05b',  // зелёный
-  '#a05ac7',  // фиолетовый
-  '#e8b84b',  // жёлтый
-  '#f4d0a0',  // телесный
+  '#3a2e1f',
+  '#000000',
+  '#c75a5a',
+  '#5a8fc7',
+  '#7ba05b',
+  '#a05ac7',
+  '#e8b84b',
+  '#f4d0a0',
 ];
 
 export function AvatarScreen(root) {
@@ -32,12 +31,10 @@ export function AvatarScreen(root) {
     </div>
 
     <div class="screen-body">
-      <!-- Превью -->
       <div class="avatar-preview">
         <canvas id="avatar-canvas" width="400" height="400"></canvas>
       </div>
 
-      <!-- Пол -->
       <div class="avatar-section">
         <div class="avatar-label">ПОЛ</div>
         <div class="avatar-row" id="gender-row">
@@ -46,7 +43,6 @@ export function AvatarScreen(root) {
         </div>
       </div>
 
-      <!-- Лицо -->
       <div class="avatar-section">
         <div class="avatar-label">ЛИЦО</div>
         <div class="avatar-row" id="face-row">
@@ -59,7 +55,6 @@ export function AvatarScreen(root) {
         <input type="file" id="file-input-camera" accept="image/*" capture="user" style="display:none">
       </div>
 
-      <!-- Цвет тела -->
       <div class="avatar-section">
         <div class="avatar-label">ЦВЕТ</div>
         <div class="avatar-colors" id="body-colors"></div>
@@ -82,15 +77,22 @@ export function AvatarScreen(root) {
   // ---------- РЕНДЕР ----------
   const render = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Фон — светлый, чтобы чёрный стикман был виден
     ctx.fillStyle = '#fdf6e3';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     avatar.render(ctx, canvas.width / 2, canvas.height / 2 + 20, 1.6);
   };
 
   render();
+
+  // ---------- ПРОВЕРКА: пришли ли с экрана рисунка ----------
+  if (State.drawReturnTo && State.drawReturnTo.screen === 'avatar') {
+    const callback = State.drawReturnTo.callback;
+    State.drawReturnTo = null;
+    // На следующем кадре (когда картинка уже сохранена) — применим
+    setTimeout(() => {
+      if (typeof callback === 'function') callback(avatar, render);
+    }, 50);
+  }
 
   // ---------- ПОЛ ----------
   const genderRow = screen.querySelector('#gender-row');
@@ -112,38 +114,65 @@ export function AvatarScreen(root) {
 
   const loadImageFile = (file) => {
     if (!file) return;
+    console.log('[Avatar] Файл выбран:', file.name, file.size);
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataURL = e.target.result;
-      cropToSquare(dataURL, 256).then(squareURL => {
-        avatar.setHeadImage(squareURL);
-        render();
+    reader.onload = async (e) => {
+      console.log('[Avatar] Файл прочитан, длина DataURL:', e.target.result.length);
+      try {
+        const squareURL = await cropToSquare(e.target.result, 256);
+        console.log('[Avatar] Обрезано в квадрат, длина:', squareURL.length);
+        avatar.setHeadImage(squareURL, () => {
+          console.log('[Avatar] Картинка загружена, рендер...');
+          render();
+        });
         Toast.show('Лицо добавлено!');
-      });
+      } catch (err) {
+        console.error('[Avatar] Ошибка обработки картинки:', err);
+        Toast.show('Ошибка: ' + err.message);
+      }
+    };
+    reader.onerror = (e) => {
+      console.error('[Avatar] Ошибка чтения файла:', e);
+      Toast.show('Не удалось прочитать файл');
     };
     reader.readAsDataURL(file);
   };
 
   screen.querySelector('#btn-camera').onclick = () => fileInputCamera.click();
   screen.querySelector('#btn-gallery').onclick = () => fileInput.click();
+
   screen.querySelector('#btn-draw-face').onclick = () => {
+    console.log('[Avatar] → Рисование лица');
+    // Запоминаем, куда вернуться
+    State.drawReturnTo = {
+      screen: 'avatar',
+      callback: (av, renderFn) => {
+        console.log('[Avatar] Callback из рисования вызван');
+        // Загружаем рисунок из IndexedDB
+        import('../drawing/export.js').then(async ({ loadDrawing }) => {
+          const data = await loadDrawing('face_drawing');
+          if (data && data.dataURL) {
+            console.log('[Avatar] Рисунок загружен, применяем');
+            av.setHeadImage(data.dataURL, () => {
+              console.log('[Avatar] Рисунок применён, рендер...');
+              renderFn();
+            });
+            Toast.show('Лицо нарисовано!');
+          } else {
+            console.warn('[Avatar] Рисунок не найден');
+          }
+        });
+      },
+    };
     Router.go('draw', {
       assetKey: 'face_drawing',
       prompt: 'Нарисуй лицо',
-      freeMode: false,
-      onDone: async (result) => {
-        if (result?.dataURL) {
-          avatar.setHeadImage(result.dataURL);
-          render();
-          Toast.show('Лицо нарисовано!');
-        }
-      },
+      freeMode: true,   // НЕ удаляем белый фон
     });
   };
 
   screen.querySelector('#btn-clear-face').onclick = () => {
-    avatar.setHeadImage(null);
-    render();
+    avatar.setHeadImage(null, () => render());
     Toast.show('Лицо убрано');
   };
 
@@ -176,25 +205,4 @@ export function AvatarScreen(root) {
   };
 
   return () => {};
-}
-
-// ---------- Обрезать картинку в квадрат ----------
-function cropToSquare(dataURL, size) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = size;
-      c.height = size;
-      const ctx = c.getContext('2d');
-
-      const minSide = Math.min(img.width, img.height);
-      const sx = (img.width - minSide) / 2;
-      const sy = (img.height - minSide) / 2;
-      ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
-
-      resolve(c.toDataURL('image/png'));
-    };
-    img.src = dataURL;
-  });
 }
