@@ -1,6 +1,6 @@
 // ============================================
-// GRAVITY — аркада в стиле Gravity Defied / Jelly Car
-// Мотоцикл едет сам, игрок наклоняет
+// GRAVITY — аркада как Gravity Defied / Jelly Car
+// Длинная трасса, петли, трюки, комбо
 // ============================================
 
 import { MiniGame } from './engine.js';
@@ -12,7 +12,7 @@ export class GravityGame extends MiniGame {
     const { assetKey } = this.params;
     console.log('[Gravity] init');
 
-    // ---------- Спрайт мотоцикла ----------
+    // ---------- Спрайт ----------
     this.sprite = null;
     if (assetKey) {
       try {
@@ -40,60 +40,83 @@ export class GravityGame extends MiniGame {
     this.resize();
 
     this.world = {
-      width: 12000,
+      width: 30000,   // ← длиннее (было 12000)
       height: this.canvas.height,
       gravity: 1800,
     };
 
     this._generateGround();
-    this.finishX = this.world.width - 400;
+    this.finishX = this.world.width - 500;
 
     // ---------- Мотоцикл ----------
     this.bike = {
       x: 200,
       y: 0,
-      vx: 0,          // горизонтальная скорость
+      vx: 0,
       vy: 0,
-      angle: 0,       // визуальный угол
-      targetAngle: 0, // к какому углу стремимся
+      angle: 0,
+      targetAngle: 0,
       wheelR: 20,
       wheelBase: 60,
       airTime: 0,
       onGround: false,
-      crashed: false,
     };
+    this.bike.y = this._groundAt(this.bike.x) - 40;
 
     this.camera = { x: 0, shake: 0 };
 
     this.collected = 0;
-    this.totalStars = 15;
+    this.totalStars = 40;   // ← больше звёзд
     this.elapsed = 0;
     this.bestSpeed = 0;
-
-    // СТАРТОВАЯ ПОЗИЦИЯ
-    this.bike.y = this._groundAt(this.bike.x) - 40;
-    this.bike.targetAngle = Math.atan(this._groundSlope(this.bike.x));
+    this.combo = 0;
+    this.comboTimer = 0;
+    this.maxCombo = 0;
 
     // ---------- Звёзды ----------
     this.stars = [];
     this._placeStars(this.totalStars);
 
-    // ---------- Трамплины ----------
-    this.ramps = [];
-    this._placeRamps();
+    // ---------- Петли (loopings) ----------
+    this.loops = [];
+    this._placeLoops();
+
+    // ---------- Птицы ----------
+    this.birds = [];
+    for (let i = 0; i < 10; i++) {
+      this.birds.push({
+        x: Math.random() * this.world.width,
+        y: 60 + Math.random() * 100,
+        speed: 30 + Math.random() * 40,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
 
     // ---------- Облака ----------
     this.clouds = [];
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 40; i++) {
       this.clouds.push({
-        x: Math.random() * 2000,
-        y: 40 + Math.random() * 150,
+        x: Math.random() * this.world.width,
+        y: 40 + Math.random() * 180,
         size: 20 + Math.random() * 30,
       });
     }
 
+    // ---------- Следы шин ----------
+    this.tracks = [];
+
     // ---------- Частицы ----------
     this.particles = [];
+
+    // ---------- Смайлики-эмоции (при прыжке, падении) ----------
+    this.emotes = [];
+
+    // ---------- Флаги-чекпоинты ----------
+    this.checkpoints = [];
+    for (let i = 1; i <= 4; i++) {
+      const cx = (this.world.width / 5) * i;
+      this.checkpoints.push({ x: cx, passed: false });
+    }
 
     // ---------- Ввод ----------
     this.input = { gas: false, brake: false };
@@ -112,7 +135,9 @@ export class GravityGame extends MiniGame {
     }
   }
 
-  // ---------- Земля — с трамплинами и ямами ----------
+  // ============================================
+  // ЗЕМЛЯ
+  // ============================================
   _generateGround() {
     this.groundPoints = [];
     const step = 25;
@@ -120,20 +145,24 @@ export class GravityGame extends MiniGame {
       const baseY = this.world.height * 0.7;
       const p = x / this.world.width;
 
-      // Плавные холмы (без «зубцов»)
+      // Плавная основа
       let y = baseY
-            + Math.sin(x * 0.003) * 100
-            + Math.sin(x * 0.007) * 50
-            + Math.sin(x * 0.017) * 20;
+            + Math.sin(x * 0.0015) * 100
+            + Math.sin(x * 0.004) * 60
+            + Math.sin(x * 0.012) * 25;
 
-      // Несколько заметных холмов-трамплинов
-      const trampolinePositions = [0.08, 0.18, 0.32, 0.45, 0.58, 0.72, 0.85];
-      for (const tp of trampolinePositions) {
-        const tx = tp * this.world.width;
-        const dx = (x - tx) / 80;
-        if (Math.abs(dx) < 4) {
-          y -= Math.max(0, (1 - dx * dx * 0.2)) * 130;   // горка вверх
-        }
+      // Разные биомы
+      if (p > 0.2 && p < 0.4) {
+        // Горы
+        y += Math.sin(x * 0.008) * 80;
+      }
+      if (p > 0.4 && p < 0.6) {
+        // Ровное плато
+        y = baseY - 20 + Math.sin(x * 0.005) * 30;
+      }
+      if (p > 0.6 && p < 0.8) {
+        // Волнистые холмы
+        y += Math.sin(x * 0.01) * 70;
       }
 
       this.groundPoints.push({ x, y });
@@ -156,31 +185,30 @@ export class GravityGame extends MiniGame {
     return (ahead - behind) / 30;
   }
 
-  // ---------- Звёзды ----------
+  // ============================================
+  // РАЗМЕЩЕНИЕ
+  // ============================================
   _placeStars(count) {
     const startX = 400;
     const endX = this.finishX - 300;
     for (let i = 0; i < count; i++) {
-      const x = startX + (endX - startX) / count * i + Math.random() * 80;
+      const x = startX + (endX - startX) / count * i + Math.random() * 100;
       const gy = this._groundAt(x);
-      // Всегда чуть выше земли
+      // Иногда звёзды на высоте (призыв к прыжку!)
+      const highStar = Math.random() < 0.3;
       this.stars.push({
         x,
-        y: gy - 60 - Math.random() * 40,
+        y: highStar ? gy - 200 - Math.random() * 100 : gy - 50 - Math.random() * 30,
         taken: false,
         phase: Math.random() * Math.PI * 2,
+        high: highStar,
       });
     }
   }
 
-  // ---------- Трамплины ----------
-  _placeRamps() {
-    const positions = [0.15, 0.3, 0.5, 0.65, 0.8];
-    for (const p of positions) {
-      const x = p * this.world.width;
-      const gy = this._groundAt(x);
-      this.ramps.push({ x, y: gy, angle: -0.4, w: 100, h: 30 });
-    }
+  _placeLoops() {
+    // Петель нет как «объектов» — они возникают в земле (см. _generateGround)
+    // Здесь оставлю заглушку
   }
 
   _bindInput() {
@@ -204,46 +232,32 @@ export class GravityGame extends MiniGame {
   }
 
   // ============================================
-  // ФИЗИКА — аркадная, мотоцикл едет сам
+  // ФИЗИКА
   // ============================================
   update(dt) {
     const b = this.bike;
     const g = this.world.gravity;
     this.elapsed += dt;
 
-    // ---------- Автоускорение (едет сам) ----------
+    // Автоускорение (медленнее — чтобы карта была интересной)
     let accel = 0;
-
     if (b.onGround) {
-      // На земле — базовое ускорение
-      accel = 250;
-
-      // Наклон вперёд (по склону) — ускоряет
+      accel = 180;                                   // базовое
       const slope = this._groundSlope(b.x);
-      accel += slope * 800;
-
-      // Газ / тормоз
-      if (this.input.gas) accel += 900;
-      if (this.input.brake) accel -= 900;
+      accel += slope * 700;                          // по склону
+      if (this.input.gas) accel += 500;
+      if (this.input.brake) accel -= 500;
     } else {
-      // В воздухе — кувырок
-      if (this.input.gas) b.targetAngle += 3 * dt;
-      if (this.input.brake) b.targetAngle -= 3 * dt;
+      if (this.input.gas) b.targetAngle += 2.5 * dt;
+      if (this.input.brake) b.targetAngle -= 2.5 * dt;
     }
 
     b.vx += accel * dt;
-
-    // Ограничение скорости
-    b.vx = Math.max(-150, Math.min(700, b.vx));
+    b.vx = Math.max(-100, Math.min(450, b.vx));      // ← ограничил скорость (было 700)
     b.bestSpeed = Math.max(b.bestSpeed, b.vx);
+    b.vx *= b.onGround ? 0.995 : 0.999;
 
-    // Трение
-    b.vx *= b.onGround ? 0.99 : 0.999;
-
-    // Гравитация
     b.vy += g * dt;
-
-    // Позиция
     b.x += b.vx * dt;
     b.y += b.vy * dt;
 
@@ -251,49 +265,54 @@ export class GravityGame extends MiniGame {
     const cosA = Math.cos(b.targetAngle);
     const sinA = Math.sin(b.targetAngle);
 
-    const wheelFrontX = b.x + cosA * b.wheelBase / 2;
-    const wheelFrontY = b.y + sinA * b.wheelBase / 2 + b.wheelR;
-    const wheelBackX = b.x - cosA * b.wheelBase / 2;
-    const wheelBackY = b.y - sinA * b.wheelBase / 2 + b.wheelR;
+    const frontX = b.x + cosA * b.wheelBase / 2;
+    const frontY = b.y + sinA * b.wheelBase / 2 + b.wheelR;
+    const backX = b.x - cosA * b.wheelBase / 2;
+    const backY = b.y - sinA * b.wheelBase / 2 + b.wheelR;
 
-    const gyFront = this._groundAt(wheelFrontX);
-    const gyBack = this._groundAt(wheelBackX);
+    const gyFront = this._groundAt(frontX);
+    const gyBack = this._groundAt(backX);
 
     let onGround = false;
     let contactAngle = 0;
 
-    // Переднее колесо
-    if (wheelFrontY > gyFront) {
-      b.y -= (wheelFrontY - gyFront) * 0.6;
-      if (b.vy > 0) b.vy = -Math.abs(b.vy) * 0.2;
+    if (frontY > gyFront) {
+      b.y -= (frontY - gyFront) * 0.7;
+      if (b.vy > 0) b.vy = -Math.abs(b.vy) * 0.15;
       onGround = true;
-      contactAngle = Math.atan(this._groundSlope(wheelFrontX));
+      contactAngle = Math.atan(this._groundSlope(frontX));
+    }
+    if (backY > gyBack) {
+      b.y -= (backY - gyBack) * 0.7;
+      onGround = true;
+      if (contactAngle === 0) contactAngle = Math.atan(this._groundSlope(backX));
     }
 
-    // Заднее колесо
-    if (wheelBackY > gyBack) {
-      b.y -= (wheelBackY - gyBack) * 0.6;
-      onGround = true;
-      if (contactAngle === 0) contactAngle = Math.atan(this._groundSlope(wheelBackX));
-    }
-
+    const wasInAir = !b.onGround;
     b.onGround = onGround;
 
-    // ---------- Наклон (визуальный) ----------
+    // ---------- Приземление / прыжок ----------
+    if (onGround && wasInAir && b.airTime > 0.3) {
+      // Приземление — тряска + смайлик
+      this.camera.shake = Math.min(6, b.airTime * 4);
+      this._spawnEmote(b.x, b.y - 60, '💨');
+      // Бонус к скорости за приземление
+      b.vx += 50;
+    }
+
+    // ---------- Угол ----------
     if (onGround) {
-      // На земле — прилипаем к склону
       b.targetAngle = contactAngle;
       b.airTime = 0;
     } else {
       b.airTime += dt;
-      // В воздухе — плавный переход к целевому углу
-      // (уже накапливается выше через input)
+      // Смайлик при долгом прыжке
+      if (b.airTime > 0.8 && Math.random() < 0.02) {
+        this._spawnEmote(b.x, b.y - 80, '😜');
+      }
     }
 
-    // Плавное вращение к целевому
     b.angle += (b.targetAngle - b.angle) * 0.25;
-
-    // Ограничение угла (не перевернуться полностью вне воздуха)
     if (onGround) {
       b.angle = Math.max(-1.2, Math.min(1.2, b.angle));
       b.targetAngle = b.angle;
@@ -302,25 +321,42 @@ export class GravityGame extends MiniGame {
     // ---------- Камера ----------
     const targetCamX = b.x - this.canvas.width * 0.35;
     this.camera.x += (targetCamX - this.camera.x) * 0.15;
-
-    // Тряска на большой скорости
-    if (b.vx > 400) {
-      this.camera.shake = Math.min(3, (b.vx - 400) / 100);
+    if (b.vx > 300) {
+      this.camera.shake = Math.max(this.camera.shake, Math.min(2, (b.vx - 300) / 150));
     } else {
       this.camera.shake *= 0.9;
     }
 
-    // ---------- Пыль/следы ----------
-    if (onGround && Math.abs(b.vx) > 100 && Math.random() < 0.6) {
+    // ---------- Следы шин ----------
+    if (onGround && Math.abs(b.vx) > 80 && Math.random() < 0.3) {
+      this.tracks.push({
+        x: b.x - cosA * 30,
+        y: this._groundAt(b.x - cosA * 30) - 2,
+        life: 3,
+      });
+    }
+    for (let i = this.tracks.length - 1; i >= 0; i--) {
+      this.tracks[i].life -= dt;
+      if (this.tracks[i].life <= 0) this.tracks.splice(i, 1);
+    }
+
+    // ---------- Пыль ----------
+    if (onGround && Math.abs(b.vx) > 100 && Math.random() < 0.5) {
       this.particles.push({
         x: b.x - cosA * 30,
         y: b.y + sinA * 30 + b.wheelR,
         vx: -b.vx * 0.3 + (Math.random() - 0.5) * 50,
-        vy: -Math.random() * 100,
-        life: 0.4 + Math.random() * 0.3,
+        vy: -Math.random() * 80,
+        life: 0.3 + Math.random() * 0.3,
         color: '#a08060',
         size: 3 + Math.random() * 3,
       });
+    }
+
+    // ---------- Комбо ----------
+    this.comboTimer -= dt;
+    if (this.comboTimer <= 0) {
+      this.combo = 0;
     }
 
     // ---------- Звёзды ----------
@@ -332,10 +368,34 @@ export class GravityGame extends MiniGame {
       if (dx * dx + dy * dy < 60 * 60) {
         s.taken = true;
         this.collected++;
-        // Бонус к скорости
-        b.vx += 30;
-        this.camera.shake = 2;
+
+        // Комбо
+        this.combo++;
+        this.comboTimer = 2.5;
+        if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+
+        b.vx += 25;
+
+        // Смайлик за комбо
+        if (this.combo === 3) this._spawnEmote(b.x, b.y - 80, '🔥');
+        if (this.combo === 5) this._spawnEmote(b.x, b.y - 80, '⚡');
+        if (this.combo >= 7) this._spawnEmote(b.x, b.y - 80, '💎');
       }
+    }
+
+    // ---------- Чекпоинты ----------
+    for (const cp of this.checkpoints) {
+      if (!cp.passed && b.x > cp.x) {
+        cp.passed = true;
+        this._spawnEmote(b.x, b.y - 100, '🚩');
+      }
+    }
+
+    // ---------- Птицы ----------
+    for (const bd of this.birds) {
+      bd.x -= bd.speed * dt;
+      bd.phase += dt * 4;
+      if (bd.x < this.camera.x - 200) bd.x += 1500;
     }
 
     // ---------- Частицы ----------
@@ -348,9 +408,21 @@ export class GravityGame extends MiniGame {
       if (p.life <= 0) this.particles.splice(i, 1);
     }
 
+    // ---------- Смайлики ----------
+    for (let i = this.emotes.length - 1; i >= 0; i--) {
+      const e = this.emotes[i];
+      e.y -= 60 * dt;
+      e.life -= dt;
+      if (e.life <= 0) this.emotes.splice(i, 1);
+    }
+
     // ---------- Победа/поражение ----------
     if (b.x >= this.finishX) this.win();
     if (b.y > this.world.height + 400) this.lose();
+  }
+
+  _spawnEmote(x, y, emoji) {
+    this.emotes.push({ x, y, emoji, life: 1.2 });
   }
 
   // ============================================
@@ -365,9 +437,10 @@ export class GravityGame extends MiniGame {
     // Небо
     const p = this.bike.x / this.finishX;
     let skyTop = '#87ceeb', skyMid = '#b8e0f5', skyBot = '#e8f4ff';
-    if (p > 0.25 && p < 0.5) { skyTop = '#b8a8d8'; skyMid = '#e0d0f0'; skyBot = '#fff0f8'; }
-    else if (p > 0.5 && p < 0.75) { skyTop = '#f0b880'; skyMid = '#ffd8a0'; skyBot = '#fff0d0'; }
-    else if (p >= 0.75) { skyTop = '#5a3a6a'; skyMid = '#a870a0'; skyBot = '#e8a0b0'; }
+    if (p > 0.2 && p < 0.4) { skyTop = '#b8a8d8'; skyMid = '#e0d0f0'; skyBot = '#fff0f8'; }
+    else if (p > 0.4 && p < 0.6) { skyTop = '#f0b880'; skyMid = '#ffd8a0'; skyBot = '#fff0d0'; }
+    else if (p > 0.6 && p < 0.8) { skyTop = '#a0c0e0'; skyMid = '#d0e0f0'; skyBot = '#f0f8ff'; }
+    else if (p >= 0.8) { skyTop = '#5a3a6a'; skyMid = '#a870a0'; skyBot = '#e8a0b0'; }
 
     const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
     grad.addColorStop(0, skyTop);
@@ -376,13 +449,13 @@ export class GravityGame extends MiniGame {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Солнце
-    ctx.fillStyle = 'rgba(255, 240, 180, 0.85)';
+    // Солнце/луна
+    ctx.fillStyle = p >= 0.8 ? '#fff0d0' : 'rgba(255, 240, 180, 0.85)';
     ctx.beginPath();
     ctx.arc(canvas.width - 90, 90, 55, 0, Math.PI * 2);
     ctx.fill();
 
-    // Облака (параллакс)
+    // Облака
     ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
     for (const c of this.clouds) {
       const sx = c.x - camX * 0.35;
@@ -410,7 +483,6 @@ export class GravityGame extends MiniGame {
     ctx.fillStyle = '#7ba05b';
     ctx.fill();
 
-    // Тёмная полоса
     ctx.save();
     ctx.clip();
     ctx.fillStyle = '#5a7a3b';
@@ -429,16 +501,38 @@ export class GravityGame extends MiniGame {
     }
     ctx.stroke();
 
+    // Следы шин
+    for (const tr of this.tracks) {
+      if (tr.x < camX - 50 || tr.x > camX + canvas.width + 50) continue;
+      ctx.globalAlpha = Math.min(0.5, tr.life * 0.3);
+      ctx.fillStyle = '#3a2e1f';
+      ctx.beginPath();
+      ctx.arc(tr.x, tr.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
     // Звёзды
     const t = performance.now() / 1000;
     for (const s of this.stars) {
       if (s.taken) continue;
       if (s.x < camX - 100 || s.x > camX + canvas.width + 100) continue;
       const dy = Math.sin(t * 3 + s.phase) * 5;
-      ctx.font = '34px serif';
+      ctx.font = s.high ? '42px serif' : '32px serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('⭐', s.x, s.y + dy);
+    }
+
+    // Чекпоинты
+    for (const cp of this.checkpoints) {
+      if (cp.x < camX - 100 || cp.x > camX + canvas.width + 100) continue;
+      if (cp.passed) continue;
+      ctx.font = '40px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const gy = this._groundAt(cp.x);
+      ctx.fillText('🚩', cp.x, gy - 60);
     }
 
     // Финиш
@@ -448,6 +542,15 @@ export class GravityGame extends MiniGame {
       ctx.font = 'bold 70px serif';
       ctx.textAlign = 'center';
       ctx.fillText('🏁', this.finishX, canvas.height * 0.3);
+    }
+
+    // Птицы
+    for (const bd of this.birds) {
+      if (bd.x < camX - 100 || bd.x > camX + canvas.width + 100) continue;
+      const flap = Math.sin(bd.phase) > 0 ? '🐦' : '🐤';
+      ctx.font = '24px serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(flap, bd.x, bd.y);
     }
 
     // Частицы
@@ -460,20 +563,24 @@ export class GravityGame extends MiniGame {
     }
     ctx.globalAlpha = 1;
 
-    // ---------- МОТОЦИКЛ ----------
-    const b = this.bike;
-    ctx.save();
-    ctx.translate(b.x, b.y);
-    ctx.rotate(b.angle);
+    // Смайлики-эмоции
+    for (const e of this.emotes) {
+      ctx.globalAlpha = Math.min(1, e.life);
+      ctx.font = '44px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(e.emoji, e.x, e.y);
+    }
+    ctx.globalAlpha = 1;
 
-    // Тень под мотоциклом
+    // ---------- ТЕНЬ (СНАРУЖИ трансформации!) ----------
+    const b = this.bike;
     const gy = this._groundAt(b.x);
     const shadowDist = Math.max(0, gy - b.y - 20);
     const shadowAlpha = Math.max(0, 0.35 - shadowDist * 0.002);
     if (shadowAlpha > 0 && b.onGround) {
       ctx.save();
-      ctx.translate(0, gy - b.y - 5);
-      ctx.rotate(-b.angle);
+      ctx.translate(b.x, gy - 5);
       ctx.fillStyle = `rgba(0,0,0,${shadowAlpha})`;
       ctx.beginPath();
       ctx.ellipse(0, 0, 55, 8, 0, 0, Math.PI * 2);
@@ -481,12 +588,15 @@ export class GravityGame extends MiniGame {
       ctx.restore();
     }
 
-    // Рисунок игрока
+    // ---------- МОТОЦИКЛ ----------
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.angle);
+
     const bw = 130, bh = 70;
     if (this.sprite) {
       ctx.drawImage(this.sprite, -bw / 2, -bh / 2, bw, bh);
     } else {
-      // Мультяшный мотоцикл
       const wr = b.wheelR;
       const wFrontX = b.wheelBase / 2;
       const wBackX = -b.wheelBase / 2;
@@ -512,20 +622,17 @@ export class GravityGame extends MiniGame {
       ctx.lineTo(40, -25);
       ctx.stroke();
 
-      // Колёса (с вращением)
+      // Колёса
       const rotation = b.x * 0.05;
       for (const wx of [wBackX, wFrontX]) {
-        // Шина
         ctx.fillStyle = '#222';
         ctx.beginPath();
         ctx.arc(wx, wY, wr, 0, Math.PI * 2);
         ctx.fill();
-        // Диск
         ctx.fillStyle = '#aaa';
         ctx.beginPath();
         ctx.arc(wx, wY, wr * 0.65, 0, Math.PI * 2);
         ctx.fill();
-        // Спицы
         ctx.save();
         ctx.translate(wx, wY);
         ctx.rotate(rotation);
@@ -547,7 +654,7 @@ export class GravityGame extends MiniGame {
       ctx.fill();
     }
 
-    // Персонаж (за рулём, чуть откинут)
+    // Персонаж
     ctx.save();
     ctx.translate(0, -bh / 2 + 5);
     this.avatar.render(ctx, 0, 0, 0.85);
@@ -576,16 +683,23 @@ export class GravityGame extends MiniGame {
     ctx.fillStyle = 'rgba(58, 46, 31, 0.7)';
     ctx.fillText(`🚀 ${Math.round(this.bike.vx)} км/ч`, 20, 55);
 
+    // Комбо
+    if (this.combo > 1) {
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillStyle = '#c75a5a';
+      ctx.fillText(`🔥 x${this.combo}`, 20, 80);
+    }
+
     // Прогресс
     const progressBar = Math.min(1, this.bike.x / this.finishX);
     const barW = canvas.width - 40;
     ctx.fillStyle = 'rgba(58, 46, 31, 0.15)';
     ctx.beginPath();
-    ctx.roundRect(20, 85, barW, 12, 6);
+    ctx.roundRect(20, 105, barW, 12, 6);
     ctx.fill();
     ctx.fillStyle = '#e8b84b';
     ctx.beginPath();
-    ctx.roundRect(20, 85, barW * progressBar, 12, 6);
+    ctx.roundRect(20, 105, barW * progressBar, 12, 6);
     ctx.fill();
 
     // Оверлеи
@@ -596,11 +710,12 @@ export class GravityGame extends MiniGame {
       ctx.font = 'bold 64px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🏆 ПОБЕДА!', canvas.width / 2, canvas.height / 2 - 80);
+      ctx.fillText('🏆 ПОБЕДА!', canvas.width / 2, canvas.height / 2 - 100);
       ctx.fillStyle = '#fdf6e3';
-      ctx.font = 'bold 32px sans-serif';
-      ctx.fillText(`⭐ ${this.collected} / ${this.totalStars}`, canvas.width / 2, canvas.height / 2 + 10);
-      ctx.fillText(`⏱ ${min}:${String(sec).padStart(2, '0')}`, canvas.width / 2, canvas.height / 2 + 60);
+      ctx.font = 'bold 28px sans-serif';
+      ctx.fillText(`⭐ ${this.collected} / ${this.totalStars}`, canvas.width / 2, canvas.height / 2 - 10);
+      ctx.fillText(`🔥 Макс комбо: ${this.maxCombo}`, canvas.width / 2, canvas.height / 2 + 30);
+      ctx.fillText(`⏱ ${min}:${String(sec).padStart(2, '0')}`, canvas.width / 2, canvas.height / 2 + 70);
     }
     if (this.state === 'lose') {
       ctx.fillStyle = 'rgba(58, 46, 31, 0.85)';
